@@ -34,12 +34,12 @@ export default () => {
 
   const googleKey = useAttributePreference('googleKey');
   const mapTilerKey = useAttributePreference('mapTilerKey');
-  const locationIqKey =
-    useAttributePreference('locationIqKey') || 'pk.0f147952a41c555a5b70614039fd148b';
+  const locationIqKey = useAttributePreference('locationIqKey');
   const bingMapsKey = useAttributePreference('bingMapsKey');
   const tomTomKey = useAttributePreference('tomTomKey');
   const hereKey = useAttributePreference('hereKey');
   const mapboxAccessToken = useAttributePreference('mapboxAccessToken');
+  const ordnanceSurveyKey = useAttributePreference('ordnanceSurveyKey');
   const customMapUrl = useSelector((state) => state.session.server.mapUrl);
 
   return useMemo(
@@ -54,13 +54,15 @@ export default () => {
         id: 'locationIqStreets',
         title: t('mapLocationIqStreets'),
         style: `https://tiles.locationiq.com/v3/streets/vector.json?key=${locationIqKey}`,
-        available: true,
+        available: Boolean(locationIqKey),
+        attribute: 'locationIqKey',
       },
       {
         id: 'locationIqDark',
         title: t('mapLocationIqDark'),
         style: `https://tiles.locationiq.com/v3/dark/vector.json?key=${locationIqKey}`,
-        available: true,
+        available: Boolean(locationIqKey),
+        attribute: 'locationIqKey',
       },
       {
         id: 'osm',
@@ -99,45 +101,34 @@ export default () => {
         id: 'googleRoad',
         title: t('mapGoogleRoad'),
         style: styleCustom({
-          tiles: googleKey
-            ? [`google://roadmap/{z}/{x}/{y}?key=${googleKey}`]
-            : [0, 1, 2, 3].map(
-                (i) => `https://mt${i}.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga`,
-              ),
+          tiles: [`google://roadmap/{z}/{x}/{y}?key=${googleKey}`],
           maxZoom: 20,
           attribution: '© Google',
         }),
-        available: true,
+        // Solo se ofrece con API key legítima; nunca se usan tiles no oficiales.
+        available: Boolean(googleKey),
         attribute: 'googleKey',
       },
       {
         id: 'googleSatellite',
         title: t('mapGoogleSatellite'),
         style: styleCustom({
-          tiles: googleKey
-            ? [`google://satellite/{z}/{x}/{y}?key=${googleKey}`]
-            : [0, 1, 2, 3].map(
-                (i) => `https://mt${i}.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga`,
-              ),
+          tiles: [`google://satellite/{z}/{x}/{y}?key=${googleKey}`],
           maxZoom: 20,
           attribution: '© Google',
         }),
-        available: true,
+        available: Boolean(googleKey),
         attribute: 'googleKey',
       },
       {
         id: 'googleHybrid',
         title: t('mapGoogleHybrid'),
         style: styleCustom({
-          tiles: googleKey
-            ? [`google://satellite/{z}/{x}/{y}?key=${googleKey}&layerType=layerRoadmap`]
-            : [0, 1, 2, 3].map(
-                (i) => `https://mt${i}.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga`,
-              ),
+          tiles: [`google://satellite/{z}/{x}/{y}?key=${googleKey}&layerType=layerRoadmap`],
           maxZoom: 20,
           attribution: '© Google',
         }),
-        available: true,
+        available: Boolean(googleKey),
         attribute: 'googleKey',
       },
       {
@@ -266,12 +257,12 @@ export default () => {
       {
         id: 'ordnanceSurvey',
         title: t('mapOrdnanceSurvey'),
-        style:
-          'https://api.os.uk/maps/vector/v1/vts/resources/styles?key=EAZ8p83u72FTGiLjLC2MsTAl1ko6XQHC',
+        style: `https://api.os.uk/maps/vector/v1/vts/resources/styles?key=${ordnanceSurveyKey}`,
         transformRequest: (url) => ({
           url: `${url}&srs=3857`,
         }),
-        available: true,
+        available: Boolean(ordnanceSurveyKey),
+        attribute: 'ordnanceSurveyKey',
       },
       {
         id: 'mapboxStreets',
@@ -343,6 +334,7 @@ export default () => {
       mapboxAccessToken,
       customMapUrl,
       googleKey,
+      ordnanceSurveyKey,
     ],
   );
 };
