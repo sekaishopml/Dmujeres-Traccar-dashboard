@@ -41,6 +41,7 @@ const DevicePage = () => {
   const [item, setItem] = useState(uniqueId ? { uniqueId } : null);
   const [showQr, setShowQr] = useState(false);
   const [imageFile, setImageFile] = useState(null);
+  const [mqttPassword, setMqttPassword] = useState('');
 
   const handleFileInput = useCatch(async (newFile) => {
     setImageFile(newFile);
@@ -55,6 +56,27 @@ const DevicePage = () => {
       const { deviceImage, ...remainingAttributes } = item.attributes || {};
       setItem({ ...item, attributes: remainingAttributes });
     }
+  });
+
+  const provisionCollaborator = useCatch(async () => {
+    if (!item?.uniqueId || !mqttPassword) {
+      window.alert('Escribe usuario y contraseña antes de crear el acceso.');
+      return;
+    }
+    const intervalSeconds = Number(item.attributes?.['mobile.intervalSeconds'] || 10);
+    const bufferMax = Number(item.attributes?.['mobile.bufferMax'] || 500);
+    const response = await fetchOrThrow('/api/mobile/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: item.uniqueId, password: mqttPassword,
+        name: item.name || item.uniqueId, intervalSeconds, bufferMax }),
+    });
+    const provisioned = await response.json();
+    setMqttPassword('');
+    setItem({ ...item, id: provisioned.deviceId, uniqueId: provisioned.username,
+      attributes: { ...item.attributes, 'mobile.intervalSeconds': provisioned.intervalSeconds,
+        'mobile.bufferMax': provisioned.bufferMax } });
+    window.alert(`Acceso creado. Entrega al colaborador\nUsuario: ${provisioned.username}`);
   });
 
   const validate = () => item && item.name && item.uniqueId;
@@ -87,6 +109,33 @@ const DevicePage = () => {
                 helperText={t('deviceIdentifierHelp')}
                 disabled={Boolean(uniqueId)}
               />
+            </AccordionDetails>
+          </Accordion>
+          <Accordion defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="subtitle1">Acceso del colaborador</Typography>
+            </AccordionSummary>
+            <AccordionDetails className={classes.details}>
+              <TextField value={item.uniqueId || ''}
+                onChange={(event) => setItem({ ...item, uniqueId: event.target.value })}
+                label="Usuario" helperText="También será el dispositivo MQTT"
+                disabled={Boolean(uniqueId)} />
+              <TextField value={mqttPassword}
+                onChange={(event) => setMqttPassword(event.target.value)}
+                label="Contraseña del colaborador" type="password"
+                helperText="Solo se usa al crear; no se guarda en atributos" />
+              <TextField value={item.attributes?.['mobile.intervalSeconds'] || 10}
+                onChange={(event) => setItem({ ...item, attributes: { ...item.attributes,
+                  'mobile.intervalSeconds': Number(event.target.value) } })}
+                label="Frecuencia (segundos)" type="number" inputProps={{ min: 3, max: 300 }} />
+              <TextField value={item.attributes?.['mobile.bufferMax'] || 500}
+                onChange={(event) => setItem({ ...item, attributes: { ...item.attributes,
+                  'mobile.bufferMax': Number(event.target.value) } })}
+                label="Buffer máximo" type="number" inputProps={{ min: 10, max: 5000 }} />
+              <Button variant="contained" color="primary" onClick={provisionCollaborator}
+                disabled={!item.uniqueId || !mqttPassword}>
+                Crear acceso y dispositivo
+              </Button>
             </AccordionDetails>
           </Accordion>
           <Accordion>
