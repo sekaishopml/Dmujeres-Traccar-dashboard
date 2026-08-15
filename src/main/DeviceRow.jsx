@@ -104,6 +104,15 @@ const DeviceRow = ({ devices, index, style }) => {
     } else {
       status = dayjs(item.lastUpdate).fromNow();
     }
+    const pending = item.attributes?.['mobile.pending'];
+    const battery = item.attributes?.['mobile.battery'];
+    if (item.status !== 'online' && (pending > 0 || battery)) {
+      status = `${status} • ${pending > 0 ? `${pending} ${t('sharedPending')}` : ''}${
+        battery ? ` • ${t('sharedBattery')} ${battery}%` : ''
+      }`;
+    } else if (item.status === 'online' && pending > 0) {
+      status = `${status} • ${pending} ${t('sharedPending')}`;
+    }
     return (
       <>
         {secondaryValue && (
