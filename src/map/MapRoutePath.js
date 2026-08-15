@@ -68,7 +68,21 @@ const MapRoutePath = ({ positions }) => {
     const minSpeed = positions.map((p) => p.speed).reduce((a, b) => Math.min(a, b), Infinity);
     const maxSpeed = positions.map((p) => p.speed).reduce((a, b) => Math.max(a, b), -Infinity);
     const features = [];
+    const maxGapMs = 5 * 60 * 1000;
     for (let i = 0; i < positions.length - 1; i += 1) {
+      const currentTime = Date.parse(
+        positions[i].fixTime || positions[i].deviceTime || positions[i].serverTime,
+      );
+      const nextTime = Date.parse(
+        positions[i + 1].fixTime || positions[i + 1].deviceTime || positions[i + 1].serverTime,
+      );
+      if (
+        Number.isFinite(currentTime) &&
+        Number.isFinite(nextTime) &&
+        nextTime - currentTime > maxGapMs
+      ) {
+        continue;
+      }
       features.push({
         type: 'Feature',
         geometry: {
