@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 import {
@@ -65,6 +66,36 @@ const useStyles = makeStyles()((theme) => ({
   },
 }));
 
+const BatterySparkline = ({ history }) => {
+  const points = useMemo(() => {
+    try {
+      const samples = JSON.parse(history);
+      if (!Array.isArray(samples) || samples.length < 2) return [];
+      const values = samples.map((sample) => sample[1]);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const span = max - min || 1;
+      return samples.map((sample, index) => ({
+        x: (index / (samples.length - 1)) * 90,
+        y: 22 - ((sample[1] - min) / span) * 20 - 1,
+      }));
+    } catch {
+      return [];
+    }
+  }, [history]);
+  if (!points.length) return null;
+  return (
+    <svg width="90" height="24" viewBox="0 0 90 24" aria-label="batteryHistory">
+      <polyline
+        points={points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
+        fill="none"
+        stroke="#0D47A1"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+};
+
 const DeviceRow = ({ devices, index, style }) => {
   const { classes } = useStyles();
   const dispatch = useDispatch();
@@ -106,12 +137,14 @@ const DeviceRow = ({ devices, index, style }) => {
     }
     const pending = item.attributes?.['mobile.pending'];
     const battery = item.attributes?.['mobile.battery'];
-    if (item.status !== 'online' && (pending > 0 || battery)) {
-      status = `${status} • ${pending > 0 ? `${pending} ${t('sharedPending')}` : ''}${
-        battery ? ` • ${t('sharedBattery')} ${battery}%` : ''
-      }`;
+    const batteryHistory = item.attributes?.['mobile.batteryHistory'];
+    if (item.status !== 'online' && pending > 0) {
+      status = `${status} • ${pending} ${t('sharedPending')}`;
     } else if (item.status === 'online' && pending > 0) {
       status = `${status} • ${pending} ${t('sharedPending')}`;
+    }
+    if (battery != null) {
+      status = `${status} • 🔋 ${battery}%`;
     }
     return (
       <>
@@ -122,6 +155,7 @@ const DeviceRow = ({ devices, index, style }) => {
           </>
         )}
         <span className={classes[getStatusColor(item.status)]}>{status}</span>
+        {batteryHistory && <BatterySparkline history={batteryHistory} />}
       </>
     );
   };
