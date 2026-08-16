@@ -69,8 +69,12 @@ const useStyles = makeStyles()((theme) => ({
 const BatterySparkline = ({ history }) => {
   const points = useMemo(() => {
     try {
-      const samples = JSON.parse(history);
-      if (!Array.isArray(samples) || samples.length < 2) return [];
+      const parsed = JSON.parse(history);
+      if (!Array.isArray(parsed)) return [];
+      const samples = parsed.filter(
+        (sample) => Array.isArray(sample) && sample.length >= 2 && Number.isFinite(sample[1]),
+      );
+      if (samples.length < 2) return [];
       const values = samples.map((sample) => sample[1]);
       const min = Math.min(...values);
       const max = Math.max(...values);
@@ -155,7 +159,9 @@ const DeviceRow = ({ devices, index, style }) => {
           </>
         )}
         <span className={classes[getStatusColor(item.status)]}>{status}</span>
-        {batteryHistory && <BatterySparkline history={batteryHistory} />}
+        {batteryHistory && selectedDeviceId === item.id && (
+          <BatterySparkline history={batteryHistory} />
+        )}
       </>
     );
   };
