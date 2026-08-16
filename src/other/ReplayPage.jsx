@@ -219,9 +219,11 @@ const ReplayPage = () => {
               <Slider
                 className={classes.slider}
                 max={positions.length - 1}
-                step={null}
-                marks={positions.map((_, index) => ({ value: index }))}
                 value={index}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(value) =>
+                  positions[value] ? formatTime(positions[value].fixTime, 'seconds') : ''
+                }
                 onChange={(_, index) => setIndex(index)}
               />
               <div className={classes.controls}>

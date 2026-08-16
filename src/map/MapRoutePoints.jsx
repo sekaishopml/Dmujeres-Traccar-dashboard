@@ -1,11 +1,20 @@
-import { useId, useCallback, useEffect } from 'react';
+import { useId, useCallback, useEffect, useMemo, useState } from 'react';
 import { map } from './core/MapView';
 import getSpeedColor from '../common/util/colors';
 import { findFonts, toMapCoordinates } from './core/mapUtil';
 import MapSpeedLegend from './control/MapSpeedLegend';
+import { DECIMATION_THRESHOLD, strideForZoom } from './util/pathDecimation';
 
 const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
   const id = useId();
+
+  const [zoom, setZoom] = useState(() => map.getZoom());
+
+  useEffect(() => {
+    const updateZoom = () => setZoom(map.getZoom());
+    map.on('zoomend', updateZoom);
+    return () => map.off('zoomend', updateZoom);
+  }, []);
 
   const onMouseEnter = () => (map.getCanvas().style.cursor = 'pointer');
   const onMouseLeave = () => (map.getCanvas().style.cursor = '');
@@ -63,12 +72,16 @@ const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
     };
   }, [onMarkerClick, id]);
 
-  useEffect(() => {
+  const features = useMemo(() => {
     const maxSpeed = positions.reduce((a, p) => Math.max(a, p.speed), -Infinity);
     const minSpeed = positions.reduce((a, p) => Math.min(a, p.speed), Infinity);
-    map.getSource(id)?.setData({
-      type: 'FeatureCollection',
-      features: positions.map((position, index) => ({
+    const zoomStride = positions.length > DECIMATION_THRESHOLD ? strideForZoom(zoom) : 1;
+    // Tope de ~1500 flechas visibles incluso al máximo zoom (evita lag con rutas largas).
+    const stride = Math.max(zoomStride, Math.ceil(positions.length / 1500));
+    return positions
+      .map((position, index) => ({ position, index }))
+      .filter(({ index }) => index % stride === 0 || index === positions.length - 1)
+      .map(({ position, index }) => ({
         type: 'Feature',
         geometry: {
           type: 'Point',
@@ -80,9 +93,15 @@ const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
           rotation: position.course,
           color: getSpeedColor(position.speed, minSpeed, maxSpeed),
         },
-      })),
+      }));
+  }, [positions, zoom]);
+
+  useEffect(() => {
+    map.getSource(id)?.setData({
+      type: 'FeatureCollection',
+      features,
     });
-  }, [positions, id]);
+  }, [features, id]);
 
   return showSpeedControl ? <MapSpeedLegend positions={positions} /> : null;
 };

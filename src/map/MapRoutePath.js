@@ -1,15 +1,27 @@
-import { useTheme } from '@mui/material/styles';
-import { useId, useEffect } from 'react';
+import { useId, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { map } from './core/MapView';
 import getSpeedColor from '../common/util/colors';
 import { useAttributePreference } from '../common/util/preferences';
 import { toMapCoordinates } from './core/mapUtil';
+import {
+  DECIMATION_THRESHOLD,
+  MAX_GAP_MS,
+  simplify,
+  splitByGap,
+  toleranceForZoom,
+} from './util/pathDecimation';
 
 const MapRoutePath = ({ positions }) => {
   const id = useId();
 
-  const theme = useTheme();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+
+  useEffect(() => {
+    const updateZoom = () => setZoom(map.getZoom());
+    map.on('zoomend', updateZoom);
+    return () => map.off('zoomend', updateZoom);
+  }, []);
 
   const reportColor = useSelector((state) => {
     const position = positions?.find(() => true);
@@ -64,22 +76,26 @@ const MapRoutePath = ({ positions }) => {
     };
   }, [id]);
 
-  useEffect(() => {
+  const features = useMemo(() => {
     const minSpeed = positions.map((p) => p.speed).reduce((a, b) => Math.min(a, b), Infinity);
     const maxSpeed = positions.map((p) => p.speed).reduce((a, b) => Math.max(a, b), -Infinity);
+
+    let decimated = positions;
+    if (positions.length > DECIMATION_THRESHOLD) {
+      const tolerance = toleranceForZoom(zoom);
+      decimated = splitByGap(positions, MAX_GAP_MS).flatMap((chunk) => simplify(chunk, tolerance));
+    }
+
     const features = [];
-    const maxGapMs = 5 * 60 * 1000;
-    for (let i = 0; i < positions.length - 1; i += 1) {
-      const currentTime = Date.parse(
-        positions[i].fixTime || positions[i].deviceTime || positions[i].serverTime,
-      );
-      const nextTime = Date.parse(
-        positions[i + 1].fixTime || positions[i + 1].deviceTime || positions[i + 1].serverTime,
-      );
+    for (let i = 0; i < decimated.length - 1; i += 1) {
+      const current = decimated[i];
+      const next = decimated[i + 1];
+      const currentTime = Date.parse(current.fixTime || current.deviceTime || current.serverTime);
+      const nextTime = Date.parse(next.fixTime || next.deviceTime || next.serverTime);
       if (
         Number.isFinite(currentTime) &&
         Number.isFinite(nextTime) &&
-        nextTime - currentTime > maxGapMs
+        nextTime - currentTime > MAX_GAP_MS
       ) {
         continue;
       }
@@ -88,22 +104,26 @@ const MapRoutePath = ({ positions }) => {
         geometry: {
           type: 'LineString',
           coordinates: [
-            toMapCoordinates(positions[i].longitude, positions[i].latitude),
-            toMapCoordinates(positions[i + 1].longitude, positions[i + 1].latitude),
+            toMapCoordinates(current.longitude, current.latitude),
+            toMapCoordinates(next.longitude, next.latitude),
           ],
         },
         properties: {
-          color: reportColor || getSpeedColor(positions[i + 1].speed, minSpeed, maxSpeed),
+          color: reportColor || getSpeedColor(next.speed, minSpeed, maxSpeed),
           width: mapLineWidth,
           opacity: mapLineOpacity,
         },
       });
     }
+    return features;
+  }, [positions, zoom, reportColor, mapLineWidth, mapLineOpacity]);
+
+  useEffect(() => {
     map.getSource(id)?.setData({
       type: 'FeatureCollection',
       features,
     });
-  }, [theme, positions, reportColor, mapLineWidth, mapLineOpacity, id]);
+  }, [features, id]);
 
   return null;
 };
