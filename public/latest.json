@@ -1,6 +1,6 @@
 {
-  "version": "1.0.27",
-  "versionCode": 28,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.27/DMujeres-Tracking-1.0.27.apk",
-  "notes": "Cola de posiciones durable sin pérdidas, inicio/fin de jornada fiable, estado real del servicio, alertas de batería baja y de conexión perdida, y skeleton de carga en los detalles."
+  "version": "1.0.28",
+  "versionCode": 29,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.28/DMujeres-Tracking-1.0.28.apk",
+  "notes": "Icono DMujeres al máximo tamaño sin recortar letras y detección de nuevas versiones en tiempo real (cada 2 min con la app abierta y al volver la conexión). La notificación de actualización incluye botón 'Actualizar'."
 }
