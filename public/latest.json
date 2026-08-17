@@ -1,6 +1,6 @@
 {
-  "version": "1.0.30",
-  "versionCode": 31,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.30/DMujeres-Tracking-1.0.30.apk",
-  "notes": "Corrección: el botón 'Permitir ubicación (siempre)' ya funciona. En Android 10+ el permiso de ubicación en segundo plano se pide por separado (antes el sistema lo descartaba y no aparecía nada)."
+  "version": "1.0.31",
+  "versionCode": 32,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.31/DMujeres-Tracking-1.0.31.apk",
+  "notes": "Actualización del servidor por defecto a la IP del entorno actual (68.168.20.219)."
 }
