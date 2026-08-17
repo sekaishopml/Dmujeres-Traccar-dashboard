@@ -65,6 +65,9 @@ const DevicePage = () => {
     }
     const intervalSeconds = Number(item.attributes?.['mobile.intervalSeconds'] || 10);
     const bufferMax = Number(item.attributes?.['mobile.bufferMax'] || 500);
+    const bufferPolicy = item.attributes?.['mobile.bufferPolicy'] || 'drop_oldest';
+    const ackTimeoutSeconds = Number(item.attributes?.['mobile.ackTimeoutSeconds'] || 15);
+    const maxRetries = Number(item.attributes?.['mobile.maxRetries'] || 30);
     const response = await fetchOrThrow('/api/mobile/provision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -74,6 +77,9 @@ const DevicePage = () => {
         name: item.name || item.uniqueId,
         intervalSeconds,
         bufferMax,
+        bufferPolicy,
+        ackTimeoutSeconds,
+        maxRetries,
       }),
     });
     const provisioned = await response.json();
@@ -86,6 +92,9 @@ const DevicePage = () => {
         ...item.attributes,
         'mobile.intervalSeconds': provisioned.intervalSeconds,
         'mobile.bufferMax': provisioned.bufferMax,
+        'mobile.bufferPolicy': provisioned.bufferPolicy,
+        'mobile.ackTimeoutSeconds': provisioned.ackTimeoutSeconds,
+        'mobile.maxRetries': provisioned.maxRetries,
       },
     });
     window.alert(`Acceso creado. Entrega al colaborador\nUsuario: ${provisioned.username}`);
@@ -153,6 +162,60 @@ const DevicePage = () => {
                 type="number"
                 inputProps={{ min: 10, max: 5000 }}
               />
+              <SelectField
+                value={item.attributes?.['mobile.bufferPolicy'] || 'drop_oldest'}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.bufferPolicy': event.target.value,
+                    },
+                  })
+                }
+                data={[
+                  { id: 'drop_oldest', name: 'Descartar las más antiguas' },
+                  { id: 'stop_capture', name: 'Detener captura' },
+                ]}
+                label="Política del buffer"
+                helperText="Qué hace la app cuando se llena la memoria de pendientes"
+              />
+              <TextField
+                value={item.attributes?.['mobile.ackTimeoutSeconds'] || 15}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.ackTimeoutSeconds': Number(event.target.value),
+                    },
+                  })
+                }
+                label="Tiempo de espera (segundos)"
+                type="number"
+                inputProps={{ min: 5, max: 60 }}
+                helperText="Cuánto espera la app la confirmación del servidor antes de reintentar"
+              />
+              <TextField
+                value={item.attributes?.['mobile.maxRetries'] || 30}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.maxRetries': Number(event.target.value),
+                    },
+                  })
+                }
+                label="Reintentos máximos"
+                type="number"
+                inputProps={{ min: 3, max: 200 }}
+                helperText="Intentos de envío de cada ubicación antes de descartarla"
+              />
+              <Typography variant="caption" color="textSecondary">
+                Esta configuración se aplica automáticamente a la app del colaborador en su próxima
+                sesión.
+              </Typography>
               <Button
                 variant="contained"
                 color="primary"
