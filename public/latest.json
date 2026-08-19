@@ -1,6 +1,6 @@
 {
-  "version": "1.0.32",
-  "versionCode": 33,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.32/DMujeres-Tracking-1.0.32.apk",
-  "notes": "Arreglo de la cola de pendientes que se congelaba tras días sin conexión: la app ahora se reconecta sola al perder MQTT y el envío por HTTP se activa también cuando hay pendientes sin confirmar. Las alertas ya no se repiten cada 20/30 minutos."
+  "version": "1.0.33",
+  "versionCode": 34,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.33/DMujeres-Tracking-1.0.33.apk",
+  "notes": "La cola pendiente ya no se congela cuando MQTT deja de confirmar. Al finalizar la jornada, la app vacía los pendientes por HTTP y marca el dispositivo fuera de línea."
 }
