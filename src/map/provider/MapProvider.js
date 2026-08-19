@@ -1,14 +1,9 @@
 /**
  * MapProvider — abstracción sobre los proveedores de mapas.
- *
- * El dashboard consume siempre esta API y nunca depende de un proveedor concreto.
- * El proveedor activo se elige por configuración (atributo `activeMapStyles` y
- * preferencia `map`), nunca por hardcoding.
- *
- * Decisión del cliente (D-015): Google Maps se ofrece siempre — con API key legítima
- * cuando existe, y sin key mediante los tiles clásicos `mt0-3.google.com/vt/...`
- * (uso heredado del Traccar original durante años). Si Google los bloquea en el futuro,
- * el fallback seguro es OpenFreeMap/OSM.
+ * El proveedor activo se elige por configuración (`activeMapStyles` y preferencia
+ * `map`). Google Maps se ofrece siempre: con API key si existe, o con los tiles
+ * clásicos mt0-3.google.com/vt/... si no. Si Google los bloquea, el fallback es
+ * OpenFreeMap/OSM.
  */
 
 export const DEFAULT_PROVIDER_ID = 'googleRoad';

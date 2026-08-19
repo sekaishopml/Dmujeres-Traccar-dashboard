@@ -1,7 +1,6 @@
 /**
- * Decimación de trazados SOLO para renderizado. No modifica ni comprime los datos:
- * cada punto conserva su posición original; simplemente se dibujan menos segmentos
- * cuando el zoom es bajo, y más (hasta todos) cuando se hace zoom.
+ * Decimación de trazados solo para renderizado: se dibujan menos segmentos a zoom
+ * bajo y más al hacer zoom. No modifica los datos originales.
  */
 
 /** Divide la secuencia en tramos separados por huecos mayores a maxGapMs (fixTime). */
