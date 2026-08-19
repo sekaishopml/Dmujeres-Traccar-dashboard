@@ -26,6 +26,12 @@ const useStyles = makeStyles()((theme) => ({
   title: {
     flexGrow: 1,
   },
+  warning: {
+    backgroundColor: 'rgba(255, 235, 59, 0.12)',
+  },
+  delete: {
+    color: theme.palette.text.secondary,
+  },
 }));
 
 const EventsDrawer = ({ open, onClose }) => {
@@ -66,6 +72,7 @@ const EventsDrawer = ({ open, onClose }) => {
             key={event.id}
             onClick={() => navigate(`/event/${event.id}`)}
             disabled={!event.id}
+            className={event.attributes?.mobileSeverity === 'warning' ? classes.warning : undefined}
           >
             <ListItemText
               primary={`${devices[event.deviceId]?.name} • ${formatType(event)}`}

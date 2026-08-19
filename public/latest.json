@@ -1,6 +1,6 @@
 {
-  "version": "1.0.34",
-  "versionCode": 35,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.34/DMujeres-Tracking-1.0.34.apk",
-  "notes": "La cola pendiente ya no se congela cuando MQTT deja de confirmar. Al finalizar la jornada, la app vacía todos los lotes por HTTP y marca el dispositivo fuera de línea, incluso al reabrir la app."
+  "version": "1.0.35",
+  "versionCode": 36,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.35/DMujeres-Tracking-1.0.35.apk",
+  "notes": "Eventos de jornada (inicio/fin), anti-trampa simple (GPS off, red, batería crítica, posible apagado). El servidor detecta cuando el colaborador apaga el GPS o el teléfono."
 }
