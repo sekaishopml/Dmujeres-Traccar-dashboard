@@ -535,6 +535,7 @@
   "eventMobileGpsReenabled": "GPS Activado Nuevamente",
   "eventMobileNetworkLost": "Conexión Perdida",
   "eventMobileNetworkRestored": "Conexión Recuperada",
+  "eventMobileWifiLost": "WiFi Desactivado",
   "eventMobileBatteryCritical": "Batería Crítica",
   "eventMobilePossiblePowerOff": "Posible Teléfono Apagado",
   "eventsScrollToLast": "Bajar al último",

@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Snackbar } from '@mui/material';
+import { Snackbar, Alert } from '@mui/material';
 import { devicesActions, sessionActions } from './store';
 import { useCatchCallback, useAsyncTask } from './reactHelper';
-import { snackBarDurationLongMs } from './common/util/duration';
 import alarm from './resources/alarm.mp3';
 import { eventsActions } from './store/events';
 import useFeatures from './common/util/useFeatures';
@@ -65,14 +64,20 @@ const SocketController = () => {
         playAlarm();
       }
       setNotifications(
-        events.map((event) => ({
-          id: event.id,
-          message: event.attributes.message,
-          show: true,
-        })),
+        events.map((event) => {
+          const severity = event.attributes?.mobileSeverity || (event.type === 'alarm' ? 'error' : 'info');
+          const typeKey = `event${event.type.charAt(0).toUpperCase()}${event.type.slice(1)}`;
+          const translatedType = t(typeKey);
+          return {
+            id: event.id,
+            message: translatedType || event.attributes?.message || event.type,
+            severity,
+            show: true,
+          };
+        }),
       );
     },
-    [features, dispatch, soundEvents, soundAlarms],
+    [features, dispatch, soundEvents, soundAlarms, t],
   );
 
   const handleEventsRef = useRef(handleEvents);
@@ -217,10 +222,19 @@ const SocketController = () => {
         <Snackbar
           key={notification.id}
           open={notification.show}
-          message={notification.message}
-          autoHideDuration={snackBarDurationLongMs}
+          autoHideDuration={null}
           onClose={() => setNotifications((prev) => prev.filter((e) => e.id !== notification.id))}
-        />
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setNotifications((prev) => prev.filter((e) => e.id !== notification.id))}
+            severity={notification.severity || 'info'}
+            variant="filled"
+            sx={{ width: '100%', backgroundColor: notification.severity === 'warning' ? '#ed6c02' : undefined }}
+          >
+            {notification.message}
+          </Alert>
+        </Snackbar>
       ))}
     </>
   );
