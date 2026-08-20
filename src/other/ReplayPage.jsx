@@ -252,7 +252,12 @@ const ReplayPage = () => {
                   onChange={(e) => setSpeed(Number(e.target.value))}
                   size="small"
                   variant="standard"
-                  sx={{ minWidth: 64 }}
+                  sx={{
+                    minWidth: 44,
+                    fontSize: '0.8125rem',
+                    ml: 0.5,
+                    '& .MuiSelect-select': { padding: '4px 18px 4px 0' },
+                  }}
                 >
                   {[1, 2, 4, 8, 10, 16].map((value) => (
                     <MenuItem key={value} value={value}>{`x${value}`}</MenuItem>
