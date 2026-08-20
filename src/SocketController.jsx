@@ -117,6 +117,23 @@ const SocketController = () => {
         if (positionsResponse.ok) {
           dispatch(sessionActions.updatePositions(await positionsResponse.json()));
         }
+        // Recargar eventos tras reconexión
+        if (!features.disableEvents) {
+          try {
+            const to = new Date();
+            const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+            const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+            const eventsResponse = await fetch(`/api/reports/events?${query.toString()}`);
+            if (socketRef.current !== socket) return;
+            if (eventsResponse.ok) {
+              const events = await eventsResponse.json();
+              events.sort((a, b) => new Date(b.eventTime) - new Date(a.eventTime));
+              dispatch(eventsActions.refresh(events.slice(0, 50)));
+            }
+          } catch {
+            // non-critical
+          }
+        }
         if (devicesResponse.status === 401 || positionsResponse.status === 401) {
           navigate('/login');
         }
@@ -159,6 +176,28 @@ const SocketController = () => {
       if (authenticated) {
         const response = await fetchOrThrow('/api/devices', { signal });
         dispatch(devicesActions.refresh(await response.json()));
+
+        // Cargar eventos recientes al iniciar (últimas 24h)
+        if (!features.disableEvents) {
+          try {
+            const to = new Date();
+            const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+            const query = new URLSearchParams({
+              from: from.toISOString(),
+              to: to.toISOString(),
+            });
+            const eventsResponse = await fetchOrThrow(
+              `/api/reports/events?${query.toString()}`,
+              { headers: { Accept: 'application/json' }, signal },
+            );
+            const events = await eventsResponse.json();
+            events.sort((a, b) => new Date(b.eventTime) - new Date(a.eventTime));
+            dispatch(eventsActions.refresh(events.slice(0, 50)));
+          } catch {
+            // non-critical
+          }
+        }
+
         nativePostMessage('authenticated');
         connectSocket();
         return () => {
@@ -168,7 +207,7 @@ const SocketController = () => {
       }
       return null;
     },
-    [authenticated, dispatch, clearReconnectTimeout, connectSocket],
+    [authenticated, dispatch, clearReconnectTimeout, connectSocket, features],
   );
 
   const handleNativeNotification = useCatchCallback(
