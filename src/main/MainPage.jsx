@@ -139,8 +139,8 @@ const MainPage = () => {
             filterMap={filterMap}
             setFilterMap={setFilterMap}
           />
+          <DeviceSummary devices={filteredDevices} />
         </Paper>
-        <DeviceSummary devices={filteredDevices} />
         <div className={classes.middle}>
           {!desktop && (
             <div className={classes.contentMap}>

@@ -12,7 +12,8 @@ const useStyles = makeStyles()((theme) => ({
     overflow: 'hidden',
     padding: theme.spacing(0.5, 1.5),
     pointerEvents: 'auto',
-    borderBottom: `1px solid ${theme.palette.divider}`,
+    boxShadow: 'none',
+    backgroundColor: 'transparent',
   },
   item: {
     display: 'flex',
@@ -49,7 +50,7 @@ const DeviceSummary = ({ devices }) => {
   }, [devices]);
 
   return (
-    <Paper square elevation={3} className={classes.summary}>
+    <Paper square elevation={0} className={classes.summary}>
       <Typography variant="caption" className={classes.item}>
         <span className={classes.dot} />
         {t('deviceStatusOnline')} {counts.online}
