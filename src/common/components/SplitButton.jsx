@@ -5,7 +5,7 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 const SplitButton = ({
   fullWidth,
   variant,
-  color,
+  className,
   disabled,
   onClick,
   options,
@@ -17,7 +17,12 @@ const SplitButton = ({
 
   return (
     <>
-      <ButtonGroup fullWidth={fullWidth} variant={variant} color={color} ref={anchorRef}>
+      <ButtonGroup
+        fullWidth={fullWidth}
+        variant={variant}
+        className={className}
+        ref={anchorRef}
+      >
         <Button disabled={disabled} onClick={() => onClick(selected)}>
           <Typography variant="button" noWrap>
             {options[selected]}

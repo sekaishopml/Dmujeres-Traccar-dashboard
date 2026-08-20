@@ -51,6 +51,15 @@ export default makeStyles()((theme) => ({
   filterButton: {
     flexGrow: 1,
   },
+  showButton: {
+    color: theme.palette.mode === 'dark' ? '#ffffff' : '#111111',
+    borderColor: theme.palette.mode === 'dark' ? '#ffffff' : '#111111',
+    '&:hover': {
+      borderColor: theme.palette.mode === 'dark' ? '#ffffff' : '#111111',
+      backgroundColor:
+        theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+  },
   chart: {
     flexGrow: 1,
     overflow: 'hidden',
