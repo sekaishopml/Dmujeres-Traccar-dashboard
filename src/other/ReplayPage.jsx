@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { IconButton, Paper, Slider, Toolbar, Typography } from '@mui/material';
+import { IconButton, MenuItem, Paper, Select, Slider, Toolbar, Typography } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
 import TuneIcon from '@mui/icons-material/Tune';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -93,6 +93,7 @@ const ReplayPage = () => {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [speed, setSpeed] = useState(1);
 
   const loaded = Boolean(from && to && !loading && positions.length);
 
@@ -116,13 +117,13 @@ const ReplayPage = () => {
     if (playing && positions.length > 0) {
       timerRef.current = setInterval(() => {
         setIndex((index) => index + 1);
-      }, 500);
+      }, 500 / speed);
     } else {
       clearInterval(timerRef.current);
     }
 
     return () => clearInterval(timerRef.current);
-  }, [playing, positions]);
+  }, [playing, positions, speed]);
 
   useEffect(() => {
     if (index >= positions.length - 1) {
@@ -246,6 +247,17 @@ const ReplayPage = () => {
                 >
                   <FastForwardIcon />
                 </IconButton>
+                <Select
+                  value={speed}
+                  onChange={(e) => setSpeed(Number(e.target.value))}
+                  size="small"
+                  variant="standard"
+                  sx={{ minWidth: 64 }}
+                >
+                  {[1, 2, 4, 8, 10, 16].map((value) => (
+                    <MenuItem key={value} value={value}>{`x${value}`}</MenuItem>
+                  ))}
+                </Select>
                 <Typography variant="caption">
                   {formatTime(positions[index].fixTime, 'seconds')}
                 </Typography>
