@@ -49,7 +49,7 @@ const DeviceSummary = ({ devices }) => {
   }, [devices]);
 
   return (
-    <Paper square elevation={0} className={classes.summary}>
+    <Paper square elevation={3} className={classes.summary}>
       <Typography variant="caption" className={classes.item}>
         <span className={classes.dot} />
         {t('deviceStatusOnline')} {counts.online}
