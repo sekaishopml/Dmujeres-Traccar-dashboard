@@ -1,16 +1,31 @@
 import { useMemo } from 'react';
-import { Paper, Chip, Box } from '@mui/material';
+import { Paper, Typography } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
 import { useTranslation } from '../common/components/LocalizationProvider';
 
 const useStyles = makeStyles()((theme) => ({
   summary: {
     display: 'flex',
-    gap: theme.spacing(1),
-    flexWrap: 'wrap',
-    padding: theme.spacing(1, 2),
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    padding: theme.spacing(0.5, 1.5),
     pointerEvents: 'auto',
     borderBottom: `1px solid ${theme.palette.divider}`,
+  },
+  item: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(0.5),
+    color: theme.palette.text.secondary,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    backgroundColor: theme.palette.text.secondary,
+    flexShrink: 0,
   },
 }));
 
@@ -35,14 +50,19 @@ const DeviceSummary = ({ devices }) => {
 
   return (
     <Paper square elevation={0} className={classes.summary}>
-      <Chip size="small" color="success" label={`${t('deviceStatusOnline')} ${counts.online}`} />
-      <Chip size="small" color="error" label={`${t('deviceStatusOffline')} ${counts.offline}`} />
-      <Chip size="small" color="warning" label={`${t('deviceSummaryLowBattery')} ${counts.lowBattery}`} />
-      <Chip
-        size="small"
-        color={counts.pending > 0 ? 'warning' : 'default'}
-        label={`${t('sharedPending')} ${counts.pending}`}
-      />
+      <Typography variant="caption" className={classes.item}>
+        <span className={classes.dot} />
+        {t('deviceStatusOnline')} {counts.online}
+      </Typography>
+      <Typography variant="caption" className={classes.item}>
+        {t('deviceStatusOffline')} {counts.offline}
+      </Typography>
+      <Typography variant="caption" className={classes.item}>
+        {t('deviceSummaryLowBattery')} {counts.lowBattery}
+      </Typography>
+      <Typography variant="caption" className={classes.item}>
+        {t('sharedPending')} {counts.pending}
+      </Typography>
     </Paper>
   );
 };
