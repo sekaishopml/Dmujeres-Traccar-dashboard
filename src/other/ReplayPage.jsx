@@ -231,6 +231,15 @@ const ReplayPage = () => {
                   positions[value] ? formatTime(positions[value].fixTime, 'seconds') : ''
                 }
                 onChange={(_, index) => setIndex(index)}
+                sx={{
+                  color: '#111111',
+                  '& .MuiSlider-rail': { backgroundColor: '#dddddd' },
+                  '& .MuiSlider-thumb': {
+                    backgroundColor: '#ffffff',
+                    border: '2px solid #111111',
+                  },
+                  '& .MuiSlider-valueLabel': { backgroundColor: '#111111', color: '#ffffff' },
+                }}
               />
               <div className={classes.controls}>
                 <Typography variant="caption" sx={{ color: '#ffffff' }}>
