@@ -53,6 +53,11 @@ const useStyles = makeStyles()((theme) => ({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: theme.spacing(0.5),
+    background: '#111111',
+    color: '#ffffff',
+    borderRadius: theme.spacing(1),
+    padding: theme.spacing(0.25, 1),
   },
   formControlLabel: {
     height: '100%',
@@ -228,44 +233,55 @@ const ReplayPage = () => {
                 onChange={(_, index) => setIndex(index)}
               />
               <div className={classes.controls}>
-                <Typography variant="caption">{`${index + 1}/${positions.length}`}</Typography>
-                <IconButton
-                  onClick={() => setIndex((index) => index - 1)}
-                  disabled={playing || index <= 0}
-                >
-                  <FastRewindIcon />
-                </IconButton>
-                <IconButton
-                  onClick={() => setPlaying(!playing)}
-                  disabled={index >= positions.length - 1}
-                >
-                  {playing ? <PauseIcon /> : <PlayArrowIcon />}
-                </IconButton>
-                <IconButton
-                  onClick={() => setIndex((index) => index + 1)}
-                  disabled={playing || index >= positions.length - 1}
-                >
-                  <FastForwardIcon />
-                </IconButton>
-                <Select
-                  value={speed}
-                  onChange={(e) => setSpeed(Number(e.target.value))}
-                  size="small"
-                  variant="standard"
-                  sx={{
-                    minWidth: 36,
-                    fontSize: '0.8125rem',
-                    ml: 0.5,
-                    mr: 1,
-                    '& .MuiSelect-select': { padding: '4px 8px 4px 0' },
-                    '& .MuiSelect-icon': { fontSize: '1rem', right: 0 },
-                  }}
-                >
-                  {[1, 2, 4, 8, 10, 16].map((value) => (
-                    <MenuItem key={value} value={value}>{`x${value}`}</MenuItem>
-                  ))}
-                </Select>
-                <Typography variant="caption">
+                <Typography variant="caption" sx={{ color: '#ffffff' }}>
+                  {`${index + 1}/${positions.length}`}
+                </Typography>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => setIndex((index) => index - 1)}
+                    disabled={playing || index <= 0}
+                    sx={{ color: '#ffffff' }}
+                  >
+                    <FastRewindIcon />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => setPlaying(!playing)}
+                    disabled={index >= positions.length - 1}
+                    sx={{ color: '#ffffff' }}
+                  >
+                    {playing ? <PauseIcon /> : <PlayArrowIcon />}
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => setIndex((index) => index + 1)}
+                    disabled={playing || index >= positions.length - 1}
+                    sx={{ color: '#ffffff' }}
+                  >
+                    <FastForwardIcon />
+                  </IconButton>
+                  <Select
+                    value={speed}
+                    onChange={(e) => setSpeed(Number(e.target.value))}
+                    size="small"
+                    variant="standard"
+                    sx={{
+                      minWidth: 30,
+                      fontSize: '0.8125rem',
+                      color: '#ffffff',
+                      ml: 0.25,
+                      '& .MuiSelect-select': { padding: '2px 4px 2px 0' },
+                      '& .MuiSelect-icon': { fontSize: '1rem', right: 0, color: '#ffffff' },
+                      '&:before, &:after': { display: 'none' },
+                    }}
+                  >
+                    {[1, 2, 4, 8, 10, 16].map((value) => (
+                      <MenuItem key={value} value={value}>{`x${value}`}</MenuItem>
+                    ))}
+                  </Select>
+                </div>
+                <Typography variant="caption" sx={{ color: '#ffffff' }}>
                   {formatTime(positions[index].fixTime, 'seconds')}
                 </Typography>
               </div>
