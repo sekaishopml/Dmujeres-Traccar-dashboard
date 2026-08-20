@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  useMediaQuery,
   Select,
   MenuItem,
   FormControl,
@@ -32,7 +31,6 @@ import {
   nativeEnvironment,
   nativePostMessage,
 } from '../common/components/NativeInterface';
-import LogoImage from './LogoImage';
 import { useCatch } from '../reactHelper';
 import QrCodeDialog from '../common/components/QrCodeDialog';
 import fetchOrThrow from '../common/util/fetchOrThrow';
@@ -199,9 +197,6 @@ const LoginPage = () => {
         )}
       </div>
       <div className={classes.container}>
-        {useMediaQuery(theme.breakpoints.down('lg')) && (
-          <LogoImage color={theme.palette.primary.main} />
-        )}
         {!openIdForced && (
           <>
             <TextField
