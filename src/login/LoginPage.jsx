@@ -15,7 +15,6 @@ import CountryFlag from 'react-country-flag';
 import { makeStyles } from 'tss-react/mui';
 import CloseIcon from '@mui/icons-material/Close';
 import VpnLockIcon from '@mui/icons-material/VpnLock';
-import QrCode2Icon from '@mui/icons-material/QrCode2';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useTheme } from '@mui/material/styles';
@@ -32,7 +31,6 @@ import {
   nativePostMessage,
 } from '../common/components/NativeInterface';
 import { useCatch } from '../reactHelper';
-import QrCodeDialog from '../common/components/QrCodeDialog';
 import fetchOrThrow from '../common/util/fetchOrThrow';
 
 const useStyles = makeStyles()((theme) => ({
@@ -88,7 +86,6 @@ const LoginPage = () => {
   const [code, setCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showServerTooltip, setShowServerTooltip] = useState(false);
-  const [showQr, setShowQr] = useState(false);
 
   const registrationEnabled = useSelector((state) => state.session.server.registration);
   const languageEnabled = useSelector((state) => {
@@ -174,11 +171,6 @@ const LoginPage = () => {
             >
               <VpnLockIcon />
             </Tooltip>
-          </IconButton>
-        )}
-        {!nativeEnvironment && (
-          <IconButton color="primary" onClick={() => setShowQr(true)}>
-            <QrCode2Icon />
           </IconButton>
         )}
         {languageEnabled && (
@@ -288,7 +280,6 @@ const LoginPage = () => {
           </div>
         )}
       </div>
-      <QrCodeDialog open={showQr} onClose={() => setShowQr(false)} />
       <Snackbar
         open={!!announcement && !announcementShown}
         message={announcement}

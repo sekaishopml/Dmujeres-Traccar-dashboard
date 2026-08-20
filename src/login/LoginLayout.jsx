@@ -49,7 +49,7 @@ const LoginLayout = ({ children }) => {
         <form className={classes.form}>{children}</form>
       </Paper>
       <Typography variant="caption" className={classes.version}>
-        {`v${version}`}
+        {`@DMujeres Tracking v${version}`}
       </Typography>
     </main>
   );
