@@ -5,7 +5,7 @@ import { map } from './core/MapView';
 import { findFonts, toMapCoordinates } from './core/mapUtil';
 import { useAttributePreference } from '../common/util/preferences';
 
-const MapRouteCoordinates = ({ name, coordinates, deviceId }) => {
+const MapRouteCoordinates = ({ name, coordinates, deviceId, showTitle = true }) => {
   const id = useId();
 
   const theme = useTheme();
@@ -49,23 +49,25 @@ const MapRouteCoordinates = ({ name, coordinates, deviceId }) => {
         'line-opacity': ['get', 'opacity'],
       },
     });
-    map.addLayer({
-      source: id,
-      id: `${id}-title`,
-      type: 'symbol',
-      layout: {
-        'text-field': '{name}',
-        'text-font': findFonts(map),
-        'text-size': 12,
-      },
-      paint: {
-        'text-halo-color': 'white',
-        'text-halo-width': 1,
-      },
-    });
+    if (showTitle) {
+      map.addLayer({
+        source: id,
+        id: `${id}-title`,
+        type: 'symbol',
+        layout: {
+          'text-field': '{name}',
+          'text-font': findFonts(map),
+          'text-size': 12,
+        },
+        paint: {
+          'text-halo-color': 'white',
+          'text-halo-width': 1,
+        },
+      });
+    }
 
     return () => {
-      if (map.getLayer(`${id}-title`)) {
+      if (showTitle && map.getLayer(`${id}-title`)) {
         map.removeLayer(`${id}-title`);
       }
       if (map.getLayer(`${id}-line`)) {
@@ -75,7 +77,7 @@ const MapRouteCoordinates = ({ name, coordinates, deviceId }) => {
         map.removeSource(id);
       }
     };
-  }, [id]);
+  }, [id, showTitle]);
 
   useEffect(() => {
     map.getSource(id)?.setData({

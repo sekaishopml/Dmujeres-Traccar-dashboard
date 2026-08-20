@@ -41,7 +41,9 @@ const MapDeviceTrail = () => {
     return null;
   }
 
-  return <MapRouteCoordinates name={deviceName} coordinates={trail} deviceId={selectedDeviceId} />;
+  return (
+    <MapRouteCoordinates name={deviceName} coordinates={trail} deviceId={selectedDeviceId} showTitle={false} />
+  );
 };
 
 export default MapDeviceTrail;
