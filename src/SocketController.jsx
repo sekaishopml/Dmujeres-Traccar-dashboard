@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Snackbar, Alert } from '@mui/material';
 import { devicesActions, sessionActions } from './store';
 import { useCatchCallback, useAsyncTask } from './reactHelper';
+import { formatNotificationTitle, formatTime } from './common/util/formatter';
+import { useTranslation } from './common/components/LocalizationProvider';
 import alarm from './resources/alarm.mp3';
 import { eventsActions } from './store/events';
 import useFeatures from './common/util/useFeatures';
@@ -48,6 +50,7 @@ const SocketController = () => {
   const soundAlarms = useAttributePreference('soundAlarms', 'sos');
 
   const features = useFeatures();
+  const t = useTranslation();
 
   const handleEvents = useCallback(
     (events) => {
@@ -66,11 +69,13 @@ const SocketController = () => {
       setNotifications(
         events.map((event) => {
           const severity = event.attributes?.mobileSeverity || (event.type === 'alarm' ? 'error' : 'info');
-          const typeKey = `event${event.type.charAt(0).toUpperCase()}${event.type.slice(1)}`;
-          const translatedType = t(typeKey);
+          const title = formatNotificationTitle(t, {
+            type: event.type,
+            attributes: { alarms: event.attributes?.alarm },
+          });
           return {
             id: event.id,
-            message: translatedType || event.attributes?.message || event.type,
+            message: title || event.attributes?.message || event.type,
             severity,
             show: true,
           };
