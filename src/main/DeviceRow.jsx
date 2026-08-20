@@ -142,14 +142,7 @@ const DeviceRow = ({ devices, index, style }) => {
     const pending = item.attributes?.['mobile.pending'];
     const battery = item.attributes?.['mobile.battery'];
     const batteryHistory = item.attributes?.['mobile.batteryHistory'];
-    if (item.status !== 'online' && pending > 0) {
-      status = `${status} • ${pending} ${t('sharedPending')}`;
-    } else if (item.status === 'online' && pending > 0) {
-      status = `${status} • ${pending} ${t('sharedPending')}`;
-    }
-    if (battery != null) {
-      status = `${status} • 🔋 ${battery}%`;
-    }
+    const pendingColor = pending > 100 ? 'error' : pending > 50 ? 'warning' : null;
     return (
       <>
         {secondaryValue && (
@@ -159,6 +152,20 @@ const DeviceRow = ({ devices, index, style }) => {
           </>
         )}
         <span className={classes[getStatusColor(item.status)]}>{status}</span>
+        {pending > 0 && (
+          <>
+            {' • '}
+            <span className={pendingColor ? classes[pendingColor] : undefined}>
+              {pending} {t('sharedPending')}
+            </span>
+          </>
+        )}
+        {battery != null && (
+          <>
+            {' • '}
+            <span>🔋 {battery}%</span>
+          </>
+        )}
         {batteryHistory && selectedDeviceId === item.id && (
           <BatterySparkline history={batteryHistory} />
         )}

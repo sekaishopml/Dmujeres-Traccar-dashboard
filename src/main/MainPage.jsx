@@ -5,6 +5,7 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useDispatch, useSelector } from 'react-redux';
 import DeviceList from './DeviceList';
+import DeviceSummary from './DeviceSummary';
 import BottomMenu from '../common/components/BottomMenu';
 import StatusCard from '../common/components/StatusCard';
 import { devicesActions } from '../store';
@@ -139,6 +140,7 @@ const MainPage = () => {
             setFilterMap={setFilterMap}
           />
         </Paper>
+        <DeviceSummary devices={filteredDevices} />
         <div className={classes.middle}>
           {!desktop && (
             <div className={classes.contentMap}>

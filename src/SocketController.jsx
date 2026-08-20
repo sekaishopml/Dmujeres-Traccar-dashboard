@@ -24,7 +24,7 @@ const playAlarm = () => {
     alarmAudio = new Audio(alarm);
   }
   alarmAudio.currentTime = 0;
-  alarmAudio.play();
+  alarmAudio.play().catch(() => {});
 };
 
 const SocketController = () => {
@@ -61,7 +61,8 @@ const SocketController = () => {
         events.some(
           (e) =>
             soundEvents.includes(e.type) ||
-            (e.type === 'alarm' && soundAlarms.includes(e.attributes.alarm)),
+            e.attributes?.mobileSeverity === 'warning' ||
+            (e.type === 'alarm' && soundAlarms.includes(e.attributes?.alarm)),
         )
       ) {
         playAlarm();

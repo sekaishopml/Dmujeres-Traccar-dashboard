@@ -252,6 +252,7 @@
   "deviceStatus": "Status",
   "deviceStatusOnline": "Online",
   "deviceStatusOffline": "Offline",
+  "deviceSummaryLowBattery": "Low battery:",
   "deviceStatusUnknown": "Unknown",
   "deviceRegisterFirst": "Register your first device",
   "deviceIdentifierHelp": "IMEI, serial number or other id. It has to match the identifier device reports to the server.",
