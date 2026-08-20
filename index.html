@@ -13,16 +13,50 @@
     <style>
       .loader {
         position: fixed; inset: 0; margin: auto;
-        width: 40px; aspect-ratio: 1; box-sizing: content-box; animation: ll 1s infinite linear;
-        border-radius: 50%; border: 4px solid lightgray; border-right-color: black;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: #F6F6F6;
+        z-index: 9999;
       }
-      @keyframes ll {to{transform: rotate(1turn)}}
+      .loader .loader-logo {
+        width: min(300px, 70vw);
+        height: auto;
+        max-height: 140px;
+        object-fit: contain;
+      }
+      .loader .loader-spinner {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 4px solid #e0e0e0;
+        border-right-color: #EB0045;
+        animation: loader-spin 1s linear infinite;
+      }
+      .loader .loader-text {
+        font-family: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        font-size: 14px;
+        color: #181818;
+      }
+      @keyframes loader-spin {
+        to { transform: rotate(1turn); }
+      }
+      @media (prefers-color-scheme: dark) {
+        .loader { background: #121212; }
+        .loader .loader-text { color: #eeeeee; }
+      }
     </style>
   </head>
   <body>
     <noscript>Enable JavaScript to use <a href="https://www.traccar.org/">Traccar GPS Tracking System</a>.</noscript>
     <div id="root" class="root"></div>
-    <div class="loader"></div>
+    <div class="loader">
+      <img class="loader-logo" src="/logo-banner.png" alt="DMujeres" />
+      <div class="loader-spinner"></div>
+      <div class="loader-text">Cargando...</div>
+    </div>
     <script type="module" src="/src/index.jsx" onerror="alert('Loading error.')"></script>
   </body>
 </html>
