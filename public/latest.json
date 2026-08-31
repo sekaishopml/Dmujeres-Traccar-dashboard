@@ -1,6 +1,6 @@
 {
-  "version": "1.0.37",
-  "versionCode": 38,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.37/DMujeres-Tracking-1.0.37.apk",
-  "notes": "Tracking adaptativo por batería, re-registro GPS automático, indicador de estado y barra de batería en la app. Panel de resumen, alerta sonora y trail en el mapa del dashboard."
+  "version": "1.0.38",
+  "versionCode": 39,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.38/DMujeres-Tracking-1.0.38.apk",
+  "notes": "App migrada a Jetpack Compose: tema Material3 con modo oscuro, layout responsive para teléfonos y tablets, y mejor rendimiento."
 }
