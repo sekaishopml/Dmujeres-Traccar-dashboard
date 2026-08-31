@@ -6,6 +6,7 @@ import { useAttributePreference } from '../common/util/preferences';
 import { toMapCoordinates } from './core/mapUtil';
 import {
   DECIMATION_THRESHOLD,
+  filterSpikes,
   MAX_GAP_MS,
   simplify,
   splitByGap,
@@ -77,13 +78,15 @@ const MapRoutePath = ({ positions }) => {
   }, [id]);
 
   const features = useMemo(() => {
-    const minSpeed = positions.map((p) => p.speed).reduce((a, b) => Math.min(a, b), Infinity);
-    const maxSpeed = positions.map((p) => p.speed).reduce((a, b) => Math.max(a, b), -Infinity);
+    const speeds = positions.map((p) => Number(p.speed)).filter(Number.isFinite);
+    const speedCapKnots = 65;
+    const minSpeed = speeds.length ? Math.max(0, Math.min(...speeds)) : 0;
+    const maxSpeed = speeds.length ? Math.min(Math.max(...speeds), speedCapKnots) : speedCapKnots;
 
     let decimated = positions;
     if (positions.length > DECIMATION_THRESHOLD) {
       const tolerance = toleranceForZoom(zoom);
-      decimated = splitByGap(positions, MAX_GAP_MS).flatMap((chunk) => simplify(chunk, tolerance));
+      decimated = splitByGap(positions, MAX_GAP_MS).flatMap((chunk) => simplify(filterSpikes(chunk), tolerance));
     }
 
     const features = [];

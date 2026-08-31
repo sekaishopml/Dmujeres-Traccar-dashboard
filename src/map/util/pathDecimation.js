@@ -64,6 +64,55 @@ export function simplify(points, tolerance) {
   return points.filter((_, index) => keep[index]);
 }
 
+/** Aplana saltos erráticos (GPS loco) solo para render; no modifica los datos. */
+export function filterSpikes(positions, maxJumpMps = 55, accuracyM = 50) {
+  if (positions.length <= 2) {
+    return positions;
+  }
+  const result = [positions[0]];
+  for (let i = 1; i < positions.length - 1; i += 1) {
+    const prev = positions[i - 1];
+    const current = positions[i];
+    const next = positions[i + 1];
+    const s01 = impliedSpeed(prev, current);
+    const s12 = impliedSpeed(current, next);
+    const reported = Number(current.speed);
+    const corroborated = Number.isFinite(reported) && s12 > 0 && reported * 0.514444 >= s12 * 0.5;
+    const isSpike = Number.isFinite(s01) && Number.isFinite(s12)
+      && s01 > maxJumpMps && s12 > maxJumpMps
+      && (Number(current.accuracy) > accuracyM || !corroborated);
+    if (!isSpike) {
+      result.push(current);
+    }
+  }
+  result.push(positions[positions.length - 1]);
+  return result;
+}
+
+/** Velocidad implícita en m/s entre dos posiciones (0 si no hay tiempo válido). */
+function impliedSpeed(a, b) {
+  const ta = Date.parse(a.fixTime || a.deviceTime || a.serverTime);
+  const tb = Date.parse(b.fixTime || b.deviceTime || b.serverTime);
+  const seconds = (tb - ta) / 1000;
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return NaN;
+  }
+  return distanceMeters(a, b) / seconds;
+}
+
+/** Distancia en metros entre dos posiciones (haversine). */
+function distanceMeters(a, b) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const la = toRad(a.latitude);
+  const lb = toRad(b.latitude);
+  const h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(la) * Math.cos(lb) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 function pointSegmentDistanceSq(px, py, ax, ay, bx, by) {
   const dx = bx - ax;
   const dy = by - ay;
