@@ -1,6 +1,6 @@
 {
-  "version": "1.0.44",
-  "versionCode": 45,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.44/DMujeres-Tracking-1.0.44.apk",
-  "notes": "Sin scroll adaptativa: posición mejorada, botón con pausa tras carga y estado grande de jornada."
+  "version": "1.0.45",
+  "versionCode": 46,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.45/DMujeres-Tracking-1.0.45.apk",
+  "notes": "Fix: sin duplicados, botón visible, hero compacto con colores suaves."
 }
