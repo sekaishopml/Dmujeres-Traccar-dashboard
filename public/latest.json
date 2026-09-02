@@ -1,6 +1,6 @@
 {
-  "version": "1.0.39",
-  "versionCode": 40,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.39/DMujeres-Tracking-1.0.39.apk",
-  "notes": "Filtro anti GPS loco: la app rechaza fixes erráticos y el server aplica red de seguridad de 260 km/h."
+  "version": "1.0.40",
+  "versionCode": 41,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.40/DMujeres-Tracking-1.0.40.apk",
+  "notes": "Avisos más claros y sin repeticiones: las alertas de memoria y de guardado ya no se repiten en bucle."
 }
