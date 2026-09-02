@@ -1,6 +1,6 @@
 {
-  "version": "1.0.43",
-  "versionCode": 44,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.43/DMujeres-Tracking-1.0.43.apk",
-  "notes": "Blanco funcional DMUJERES.EC: vuelve al diseño limpio de la marca, sin exceso de animaciones."
+  "version": "1.0.44",
+  "versionCode": 45,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.44/DMujeres-Tracking-1.0.44.apk",
+  "notes": "Sin scroll adaptativa: posición mejorada, botón con pausa tras carga y estado grande de jornada."
 }
