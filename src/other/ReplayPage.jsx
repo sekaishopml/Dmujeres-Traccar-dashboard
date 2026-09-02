@@ -119,20 +119,40 @@ const ReplayPage = () => {
   }, [from, to, setPositions]);
 
   useEffect(() => {
-    if (playing && positions.length > 0) {
-      timerRef.current = setInterval(() => {
-        setIndex((index) => index + 1);
-      }, 500 / speed);
-    } else {
-      clearInterval(timerRef.current);
+    if (!playing || positions.length === 0) {
+      clearTimeout(timerRef.current);
+      return undefined;
     }
-
-    return () => clearInterval(timerRef.current);
-  }, [playing, positions, speed]);
+    if (index >= positions.length - 1) {
+      clearTimeout(timerRef.current);
+      setPlaying(false);
+      return undefined;
+    }
+    const current = positions[index];
+    const next = positions[index + 1];
+    let deltaMs = NaN;
+    if (current && next) {
+      const currTime = Date.parse(current.fixTime || current.deviceTime || current.serverTime);
+      const nextTime = Date.parse(next.fixTime || next.deviceTime || next.serverTime);
+      if (Number.isFinite(currTime) && Number.isFinite(nextTime)) {
+        deltaMs = nextTime - currTime;
+      }
+    }
+    let delay;
+    if (Number.isFinite(deltaMs) && deltaMs > 0) {
+      delay = Math.min(2000, Math.max(100, deltaMs / (speed * 5)));
+    } else {
+      delay = 500 / speed;
+    }
+    timerRef.current = setTimeout(() => {
+      setIndex((prev) => Math.min(prev + 1, positions.length - 1));
+    }, delay);
+    return () => clearTimeout(timerRef.current);
+  }, [playing, positions, speed, index]);
 
   useEffect(() => {
     if (index >= positions.length - 1) {
-      clearInterval(timerRef.current);
+      clearTimeout(timerRef.current);
       setPlaying(false);
     }
   }, [index, positions]);
@@ -161,6 +181,7 @@ const ReplayPage = () => {
         const response = await fetchOrThrow(`/api/positions?${query.toString()}`);
         setIndex(0);
         const positions = await response.json();
+        positions.sort((a, b) => new Date(a.fixTime) - new Date(b.fixTime));
         setPositions(positions);
         if (!positions.length) {
           throw Error(t('sharedNoData'));

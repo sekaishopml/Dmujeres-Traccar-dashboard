@@ -65,7 +65,7 @@ export function simplify(points, tolerance) {
 }
 
 /** Aplana saltos erráticos (GPS loco) solo para render; no modifica los datos. */
-export function filterSpikes(positions, maxJumpMps = 55, accuracyM = 50) {
+export function filterSpikes(positions, maxJumpMps = 60, accuracyM = 50) {
   if (positions.length <= 2) {
     return positions;
   }
@@ -77,7 +77,7 @@ export function filterSpikes(positions, maxJumpMps = 55, accuracyM = 50) {
     const s01 = impliedSpeed(prev, current);
     const s12 = impliedSpeed(current, next);
     const reported = Number(current.speed);
-    const corroborated = Number.isFinite(reported) && s12 > 0 && reported * 0.514444 >= s12 * 0.5;
+    const corroborated = Number.isFinite(reported) && s12 > 0 && reported * 0.514444 >= s12 * 0.4;
     const isSpike = Number.isFinite(s01) && Number.isFinite(s12)
       && s01 > maxJumpMps && s12 > maxJumpMps
       && (Number(current.accuracy) > accuracyM || !corroborated);
