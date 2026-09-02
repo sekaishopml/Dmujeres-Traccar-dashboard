@@ -23,8 +23,9 @@ const AppThemeProvider = ({ children }) => {
   const { direction } = useLocalization();
 
   const serverDarkMode = server?.attributes?.darkMode;
-  const preferDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-  const darkMode = serverDarkMode !== undefined ? serverDarkMode : preferDarkMode;
+  // Enterprise dark default: ignore system preference when server doesn't define darkMode
+  useMediaQuery('(prefers-color-scheme: dark)');
+  const darkMode = serverDarkMode !== undefined ? serverDarkMode : true;
 
   const themeInstance = theme(server, darkMode, direction);
 

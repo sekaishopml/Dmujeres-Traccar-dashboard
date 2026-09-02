@@ -12,4 +12,6 @@ export default {
   popupImageHeight: 144,
   cardContentMaxHeight: '40vh',
   qrCodeSize: 192,
+  borderRadius: '16px',
+  cardBorderRadius: '16px',
 };

@@ -54,10 +54,14 @@ const useStyles = makeStyles()((theme) => ({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: theme.spacing(0.5),
-    background: '#111111',
+    background: 'rgba(17,17,17,0.75)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
     color: '#ffffff',
-    borderRadius: theme.spacing(1),
-    padding: theme.spacing(0.25, 1),
+    borderRadius: 16,
+    padding: theme.spacing(0.5, 1.5),
   },
   formControlLabel: {
     height: '100%',
@@ -70,8 +74,15 @@ const useStyles = makeStyles()((theme) => ({
     display: 'flex',
     flexDirection: 'column',
     padding: theme.spacing(2),
+    background: 'rgba(22,22,31,0.72)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
     [theme.breakpoints.down('md')]: {
       margin: theme.spacing(1),
+      borderRadius: 12,
     },
     [theme.breakpoints.up('md')]: {
       marginTop: theme.spacing(1),
@@ -217,12 +228,12 @@ const ReplayPage = () => {
       <MapScale />
       <MapCamera positions={positions} />
       <div className={classes.sidebar}>
-        <Paper elevation={3} square>
+        <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', background: 'rgba(22,22,31,0.72)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}>
           <Toolbar>
             <IconButton edge="start" sx={{ mr: 2 }} onClick={() => navigate(-1)}>
               <BackIcon />
             </IconButton>
-            <Typography variant="h6" className={classes.title}>
+            <Typography variant="h6" className={classes.title} sx={{ background: 'linear-gradient(135deg,#EB0045 0%,#7C3AED 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 800, letterSpacing: '0.02em' }}>
               {t('reportReplay')}
             </Typography>
             {loaded && (
@@ -237,10 +248,10 @@ const ReplayPage = () => {
             )}
           </Toolbar>
         </Paper>
-        <Paper className={classes.content} square>
+        <Paper className={classes.content} elevation={0}>
           {loaded && !filterOpen && (
             <>
-              <Typography variant="subtitle1" align="center">
+              <Typography variant="subtitle1" align="center" sx={{ fontWeight: 700, background: 'linear-gradient(135deg,#F5F5F7 0%,#9BA1B6 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                 {deviceName}
               </Typography>
               <Slider
@@ -253,25 +264,31 @@ const ReplayPage = () => {
                 }
                 onChange={(_, index) => setIndex(index)}
                 sx={{
-                  color: '#111111',
-                  '& .MuiSlider-rail': { backgroundColor: '#dddddd' },
+                  color: '#FF2D8A',
+                  height: 6,
+                  '& .MuiSlider-rail': { backgroundColor: 'rgba(255,255,255,0.15)', opacity: 1, height: 6, borderRadius: 999 },
+                  '& .MuiSlider-track': { background: 'linear-gradient(135deg,#EB0045 0%,#7C3AED 100%)', height: 6, borderRadius: 999, border: 'none' },
                   '& .MuiSlider-thumb': {
-                    backgroundColor: '#ffffff',
-                    border: '2px solid #111111',
+                    width: 18,
+                    height: 18,
+                    background: 'linear-gradient(135deg,#FF2D8A 0%,#7C3AED 100%)',
+                    border: '2px solid #FFFFFF',
+                    boxShadow: '0 0 12px rgba(255,45,138,0.6)',
+                    '&:hover, &.Mui-active': { boxShadow: '0 0 16px rgba(255,45,138,0.8)', width: 20, height: 20 },
                   },
-                  '& .MuiSlider-valueLabel': { backgroundColor: '#111111', color: '#ffffff' },
+                  '& .MuiSlider-valueLabel': { backgroundColor: 'rgba(20,20,28,0.9)', color: '#F5F5F7', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' },
                 }}
               />
               <div className={classes.controls}>
-                <Typography variant="caption" sx={{ color: '#ffffff' }}>
+                <Typography variant="caption" sx={{ color: '#ffffff', fontWeight: 600, minWidth: 56 }}>
                   {`${index + 1}/${positions.length}`}
                 </Typography>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <IconButton
                     size="small"
                     onClick={() => setIndex((index) => index - 1)}
                     disabled={playing || index <= 0}
-                    sx={{ color: '#ffffff' }}
+                    sx={{ color: '#ffffff', '&:hover': { background: 'rgba(255,255,255,0.08)' } }}
                   >
                     <FastRewindIcon />
                   </IconButton>
@@ -279,7 +296,15 @@ const ReplayPage = () => {
                     size="small"
                     onClick={() => setPlaying(!playing)}
                     disabled={index >= positions.length - 1}
-                    sx={{ color: '#ffffff' }}
+                    sx={{
+                      color: '#ffffff',
+                      background: playing ? 'rgba(255,45,138,0.16)' : 'linear-gradient(135deg,#EB0045 0%,#7C3AED 100%)',
+                      borderRadius: '50%',
+                      width: 36,
+                      height: 36,
+                      boxShadow: playing ? 'none' : '0 4px 16px rgba(255,45,138,0.4)',
+                      '&:hover': { background: playing ? 'rgba(255,45,138,0.22)' : 'linear-gradient(135deg,#FF2D8A 0%,#8B5CF6 100%)' },
+                    }}
                   >
                     {playing ? <PauseIcon /> : <PlayArrowIcon />}
                   </IconButton>
@@ -287,7 +312,7 @@ const ReplayPage = () => {
                     size="small"
                     onClick={() => setIndex((index) => index + 1)}
                     disabled={playing || index >= positions.length - 1}
-                    sx={{ color: '#ffffff' }}
+                    sx={{ color: '#ffffff', '&:hover': { background: 'rgba(255,255,255,0.08)' } }}
                   >
                     <FastForwardIcon />
                   </IconButton>
@@ -295,15 +320,21 @@ const ReplayPage = () => {
                     value={speed}
                     onChange={(e) => setSpeed(Number(e.target.value))}
                     size="small"
-                    variant="standard"
+                    variant="outlined"
                     sx={{
-                      minWidth: 30,
+                      minWidth: 64,
+                      height: 28,
                       fontSize: '0.8125rem',
+                      fontWeight: 700,
                       color: '#ffffff',
-                      ml: 0.25,
-                      '& .MuiSelect-select': { padding: '2px 4px 2px 0' },
-                      '& .MuiSelect-icon': { fontSize: '1rem', right: 0, color: '#ffffff' },
-                      '&:before, &:after': { display: 'none' },
+                      ml: 0.5,
+                      background: 'rgba(255,255,255,0.10)',
+                      backdropFilter: 'blur(12px)',
+                      borderRadius: '999px',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                      '& .MuiSelect-select': { padding: '4px 8px', display: 'flex', alignItems: 'center' },
+                      '& .MuiSelect-icon': { fontSize: '1rem', right: 6, color: '#ffffff' },
                     }}
                   >
                     {[1, 2, 4, 8, 10, 16].map((value) => (
@@ -311,7 +342,7 @@ const ReplayPage = () => {
                     ))}
                   </Select>
                 </div>
-                <Typography variant="caption" sx={{ color: '#ffffff' }}>
+                <Typography variant="caption" sx={{ color: '#ffffff', fontWeight: 600, minWidth: 72, textAlign: 'right', fontSize: '0.68rem' }}>
                   {formatTime(positions[index].fixTime, 'seconds')}
                 </Typography>
               </div>

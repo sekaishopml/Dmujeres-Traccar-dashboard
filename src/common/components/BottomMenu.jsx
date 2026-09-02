@@ -125,14 +125,55 @@ const BottomMenu = () => {
     }
   };
 
+  const isOffline = socket === false;
+
   return (
-    <Paper square elevation={3}>
-      <BottomNavigation value={currentSelection()} onChange={handleSelection} showLabels>
+    <Paper
+      elevation={0}
+      sx={{
+        borderRadius: '24px',
+        margin: '12px',
+        background: 'rgba(22,22,31,0.72)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        overflow: 'hidden',
+        '@keyframes dm-pulse': {
+          '0%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(255,59,92,0.6)' },
+          '70%': { transform: 'scale(1.08)', boxShadow: '0 0 0 8px rgba(255,59,92,0)' },
+          '100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(255,59,92,0)' },
+        },
+      }}
+    >
+      <BottomNavigation value={currentSelection()} onChange={handleSelection} showLabels sx={{ background: 'transparent' }}>
         <BottomNavigationAction
           label={t('mapTitle')}
           icon={
-            <Badge color="error" variant="dot" overlap="circular" invisible={socket !== false}>
-              <MapIcon />
+            <Badge
+              color="error"
+              variant="dot"
+              overlap="circular"
+              invisible={!isOffline}
+              sx={{
+                '& .MuiBadge-badge': isOffline
+                  ? {
+                      animation: 'dm-pulse 1.5s infinite',
+                      boxShadow: '0 0 0 0 rgba(255,59,92,0.6)',
+                    }
+                  : undefined,
+              }}
+            >
+              <MapIcon
+                sx={
+                  isOffline
+                    ? {
+                        animation: 'dm-pulse 1.5s infinite',
+                        borderRadius: '50%',
+                      }
+                    : undefined
+                }
+              />
             </Badge>
           }
           value="map"

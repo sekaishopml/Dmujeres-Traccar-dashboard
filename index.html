@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="${colorPrimary}" />
+    <meta name="theme-color" content="#0A0B14" />
     <meta name="description" content="${description}" />
     <link rel="icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" sizes="180x180" />
@@ -17,8 +17,12 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 24px;
-        background: #F6F6F6;
+        gap: 18px;
+        background: #0A0B14;
+        background-image:
+          radial-gradient(1200px 600px at 10% -10%, rgba(255,45,138,0.12), transparent 60%),
+          radial-gradient(1000px 500px at 90% 0%, rgba(124,58,237,0.14), transparent 60%),
+          radial-gradient(900px 600px at 50% 120%, rgba(59,178,208,0.08), transparent 60%);
         z-index: 9999;
       }
       .loader .loader-logo {
@@ -26,26 +30,40 @@
         height: auto;
         max-height: 140px;
         object-fit: contain;
+        filter: drop-shadow(0 4px 24px rgba(255,45,138,0.25));
+      }
+      .loader .loader-brand {
+        font-family: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: rgba(245,245,247,0.85);
+        margin-top: 2px;
+      }
+      .loader .loader-brand span {
+        background: linear-gradient(135deg,#EB0045 0%,#7C3AED 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
       }
       .loader .loader-spinner {
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        border: 4px solid #e0e0e0;
-        border-right-color: #EB0045;
+        border: 4px solid rgba(255,255,255,0.08);
+        border-right-color: #FF2D8A;
+        box-shadow: 0 0 16px rgba(255,45,138,0.35);
         animation: loader-spin 1s linear infinite;
       }
       .loader .loader-text {
         font-family: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-        font-size: 14px;
-        color: #181818;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        color: #9BA1B6;
       }
       @keyframes loader-spin {
         to { transform: rotate(1turn); }
-      }
-      @media (prefers-color-scheme: dark) {
-        .loader { background: #121212; }
-        .loader .loader-text { color: #eeeeee; }
       }
     </style>
   </head>
@@ -54,8 +72,9 @@
     <div id="root" class="root"></div>
     <div class="loader">
       <img class="loader-logo" src="/logo-banner.png" alt="DMujeres" />
+      <div class="loader-brand"><span>DMUJERES.EC</span> · Belleza Profesional</div>
       <div class="loader-spinner"></div>
-      <div class="loader-text">Cargando...</div>
+      <div class="loader-text">Cargando experiencia enterprise…</div>
     </div>
     <script type="module" src="/src/index.jsx" onerror="alert('Loading error.')"></script>
   </body>

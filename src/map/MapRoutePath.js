@@ -38,7 +38,7 @@ const MapRoutePath = ({ positions }) => {
     return null;
   });
 
-  const mapLineWidth = useAttributePreference('mapLineWidth', 2);
+  const mapLineWidth = useAttributePreference('mapLineWidth', 3);
   const mapLineOpacity = useAttributePreference('mapLineOpacity', 1);
 
   useEffect(() => {
@@ -50,6 +50,22 @@ const MapRoutePath = ({ positions }) => {
           type: 'LineString',
           coordinates: [],
         },
+      },
+    });
+    // Shadow / glow layer under main line for enterprise depth
+    map.addLayer({
+      source: id,
+      id: `${id}-shadow`,
+      type: 'line',
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round',
+      },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': ['+', ['get', 'width'], 6],
+        'line-opacity': 0.18,
+        'line-blur': 4,
       },
     });
     map.addLayer({
@@ -64,12 +80,17 @@ const MapRoutePath = ({ positions }) => {
         'line-color': ['get', 'color'],
         'line-width': ['get', 'width'],
         'line-opacity': ['get', 'opacity'],
+        // dashed when opacity suggests paused (0.5) - keep existing behavior via opacity
+        'line-dasharray': [1, 0],
       },
     });
 
     return () => {
       if (map.getLayer(`${id}-line`)) {
         map.removeLayer(`${id}-line`);
+      }
+      if (map.getLayer(`${id}-shadow`)) {
+        map.removeLayer(`${id}-shadow`);
       }
       if (map.getSource(id)) {
         map.removeSource(id);
