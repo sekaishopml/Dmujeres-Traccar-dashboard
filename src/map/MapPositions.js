@@ -143,10 +143,8 @@ const MapPositions = ({
           'symbol-sort-key': ['get', 'id'],
         },
         paint: {
-          'text-color': '#F5F5F7',
-          'text-halo-color': 'rgba(0,0,0,0.85)',
-          'text-halo-width': 1.5,
-          'text-halo-blur': 0.5,
+          'text-halo-color': 'white',
+          'text-halo-width': 1,
         },
       });
       map.addLayer({
@@ -168,19 +166,6 @@ const MapPositions = ({
       map.on('click', source, onMarkerClickCallback);
     });
     map.addLayer({
-      id: `${clusters}-halo`,
-      type: 'circle',
-      source: id,
-      filter: ['has', 'point_count'],
-      paint: {
-        'circle-radius': 22 * iconScale,
-        'circle-color': 'rgba(255,45,138,0.14)',
-        'circle-stroke-color': 'rgba(255,255,255,0.18)',
-        'circle-stroke-width': 1,
-        'circle-opacity': 0.9,
-      },
-    });
-    map.addLayer({
       id: clusters,
       type: 'symbol',
       source: id,
@@ -191,12 +176,6 @@ const MapPositions = ({
         'text-field': '{point_count_abbreviated}',
         'text-font': findFonts(map),
         'text-size': 14,
-        'text-allow-overlap': true,
-      },
-      paint: {
-        'text-color': '#0A0B14',
-        'text-halo-color': 'rgba(255,255,255,0.85)',
-        'text-halo-width': 0.5,
       },
     });
 
@@ -213,9 +192,6 @@ const MapPositions = ({
 
       if (map.getLayer(clusters)) {
         map.removeLayer(clusters);
-      }
-      if (map.getLayer(`${clusters}-halo`)) {
-        map.removeLayer(`${clusters}-halo`);
       }
 
       [id, selected].forEach((source) => {

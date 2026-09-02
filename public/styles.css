@@ -5,19 +5,11 @@ html, body {
 body {
   margin: 0;
   padding: 0;
-  background: #0A0B14;
-  color: #F5F5F7;
-  /* subtle enterprise mesh gradient for loading before React mounts */
-  background-image:
-    radial-gradient(1200px 600px at 10% -10%, rgba(255,45,138,0.12), transparent 60%),
-    radial-gradient(1000px 500px at 90% 0%, rgba(124,58,237,0.14), transparent 60%),
-    radial-gradient(900px 600px at 50% 120%, rgba(59,178,208,0.08), transparent 60%);
-  background-attachment: fixed;
 }
 
 @media (prefers-color-scheme: dark) {
   body {
-    background: #0A0B14;
+    background: black;
   }
 }
 
@@ -25,59 +17,6 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-
-/* Enterprise map controls - Discord/X/EA glass */
-.maplibregl-ctrl-group {
-  background: rgba(20,20,28,0.6) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  border-radius: 12px !important;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
-}
-.maplibregl-ctrl-group button {
-  color: rgba(255,255,255,0.9) !important;
-}
-.maplibregl-ctrl-group button:hover {
-  background: rgba(255,255,255,0.08) !important;
-}
-.maplibregl-ctrl-group button.active {
-  background: rgba(255,45,138,0.12) !important;
-  color: #FF2D8A !important;
-}
-.maplibregl-ctrl-attrib {
-  background: rgba(20,20,28,0.6) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-  color: rgba(255,255,255,0.7);
-}
-.maplibregl-ctrl-scale {
-  background: rgba(20,20,28,0.6) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  border-radius: 8px !important;
-  color: #F5F5F7;
-}
-
-/* Scrollbar enterprise dark */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.04);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.12);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.18);
 }
 
 @media print {

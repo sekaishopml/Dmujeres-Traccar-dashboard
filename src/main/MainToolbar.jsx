@@ -34,36 +34,12 @@ const useStyles = makeStyles()((theme) => ({
     display: 'flex',
     gap: theme.spacing(1),
   },
-  searchInput: {
-    borderRadius: 999,
-    background: 'rgba(255,255,255,0.06)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    '& .MuiOutlinedInput-notchedOutline': {
-      border: 'none',
-    },
-    '&:hover': {
-      background: 'rgba(255,255,255,0.08)',
-      borderColor: 'rgba(255,255,255,0.12)',
-    },
-    '&.Mui-focused': {
-      background: 'rgba(255,255,255,0.08)',
-      borderColor: theme.palette.primary.main,
-      boxShadow: `0 0 0 2px rgba(255,45,138,0.15)`,
-    },
-  },
   filterPanel: {
     display: 'flex',
     flexDirection: 'column',
     padding: theme.spacing(2),
     gap: theme.spacing(2),
     width: theme.dimensions.drawerWidthTablet,
-  },
-  '@keyframes dm-dot-pulse': {
-    '0%': { transform: 'scale(1)', opacity: 1 },
-    '50%': { transform: 'scale(1.5)', opacity: 0.6 },
-    '100%': { transform: 'scale(1)', opacity: 1 },
   },
 }));
 
@@ -99,8 +75,6 @@ const MainToolbar = ({
   const deviceStatusCount = (status) =>
     Object.values(devices).filter((d) => d.status === status).length;
 
-  const hasActiveFilter = filter.statuses.length || filter.groups.length || filter.geofences.length;
-
   return (
     <Toolbar ref={toolbarRef} className={classes.toolbar}>
       <IconButton edge="start" onClick={() => setDevicesOpen(!devicesOpen)}>
@@ -119,38 +93,17 @@ const MainToolbar = ({
               <Badge
                 color="info"
                 variant="dot"
-                invisible={!hasActiveFilter}
-                sx={{
-                  '& .MuiBadge-badge': hasActiveFilter
-                    ? {
-                        backgroundColor: '#FF2D8A',
-                        boxShadow: '0 0 8px rgba(255,45,138,0.6)',
-                        animation: 'dm-dot-pulse 1.5s infinite',
-                      }
-                    : undefined,
-                }}
+                invisible={
+                  !filter.statuses.length && !filter.groups.length && !filter.geofences.length
+                }
               >
-                <TuneIcon
-                  fontSize="small"
-                  sx={
-                    hasActiveFilter
-                      ? {
-                          color: '#FF2D8A',
-                          filter: 'drop-shadow(0 0 6px rgba(255,45,138,0.5))',
-                        }
-                      : undefined
-                  }
-                />
+                <TuneIcon fontSize="small" />
               </Badge>
             </IconButton>
           </InputAdornment>
         }
         size="small"
         fullWidth
-        className={classes.searchInput}
-        sx={{
-          borderRadius: '999px',
-        }}
       />
       <Popover
         open={!!devicesAnchorEl && !devicesOpen}

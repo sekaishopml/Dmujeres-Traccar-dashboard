@@ -16,16 +16,10 @@ const useStyles = makeStyles()(() => ({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: 'rgba(255,255,255,0.9)',
-      background: 'transparent',
-      borderRadius: '12px',
-    },
-    '&:hover': {
-      background: 'rgba(255,255,255,0.08)',
+      color: '#333',
     },
     '&.active': {
-      backgroundColor: 'rgba(255,45,138,0.16) !important',
-      color: '#FF2D8A !important',
+      backgroundColor: '#e6e6e6',
       borderRadius: 'inherit',
     },
   },

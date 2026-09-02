@@ -40,27 +40,9 @@ dayjs.extend(relativeTime);
 
 const useStyles = makeStyles()((theme) => ({
   icon: {
-    width: '20px',
-    height: '20px',
+    width: '25px',
+    height: '25px',
     filter: 'brightness(0) invert(1)',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    background: 'rgba(255,255,255,0.06)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255,255,255,0.08)',
-  },
-  avatarOnline: {
-    boxShadow: '0 0 0 2px rgba(0,230,118,0.55), 0 0 12px rgba(0,230,118,0.45)',
-    animation: 'dm-pulse 1.5s infinite',
-  },
-  avatarOffline: {
-    boxShadow: '0 0 0 2px rgba(255,59,92,0.45), 0 0 10px rgba(255,59,92,0.35)',
-  },
-  avatarUnknown: {
-    boxShadow: '0 0 0 2px rgba(155,161,182,0.35), 0 0 10px rgba(155,161,182,0.25)',
   },
   batteryText: {
     fontSize: '0.75rem',
@@ -80,14 +62,7 @@ const useStyles = makeStyles()((theme) => ({
     color: theme.palette.neutral.main,
   },
   selected: {
-    backgroundColor: 'rgba(255,45,138,0.12) !important',
-    border: '1px solid rgba(255,45,138,0.22) !important',
-    backdropFilter: 'blur(12px)',
-  },
-  '@keyframes dm-pulse': {
-    '0%': { transform: 'scale(1)', opacity: 1 },
-    '50%': { transform: 'scale(1.03)', opacity: 0.92 },
-    '100%': { transform: 'scale(1)', opacity: 1 },
+    backgroundColor: theme.palette.action.selected,
   },
 }));
 
@@ -115,27 +90,18 @@ const BatterySparkline = ({ history }) => {
   if (!points.length) return null;
   return (
     <svg width="90" height="24" viewBox="0 0 90 24" aria-label="batteryHistory">
-      <defs>
-        <linearGradient id="dm-spark-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#EB0045" />
-          <stop offset="100%" stopColor="#7C3AED" />
-        </linearGradient>
-      </defs>
       <polyline
         points={points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
         fill="none"
-        stroke="url(#dm-spark-gradient)"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ filter: 'drop-shadow(0 0 4px rgba(255,45,138,0.45))' }}
+        stroke="#0D47A1"
+        strokeWidth="1.5"
       />
     </svg>
   );
 };
 
 const DeviceRow = ({ devices, index, style }) => {
-  const { classes, cx } = useStyles();
+  const { classes } = useStyles();
   const dispatch = useDispatch();
   const t = useTranslation();
 
@@ -166,8 +132,6 @@ const DeviceRow = ({ devices, index, style }) => {
   const primaryValue = resolveFieldValue(devicePrimary);
   const secondaryValue = resolveFieldValue(deviceSecondary);
 
-  const statusColor = getStatusColor(item.status);
-
   const secondaryText = () => {
     let status;
     if (item.status === 'online' || !item.lastUpdate) {
@@ -187,7 +151,7 @@ const DeviceRow = ({ devices, index, style }) => {
             {' • '}
           </>
         )}
-        <span className={classes[statusColor]}>{status}</span>
+        <span className={classes[getStatusColor(item.status)]}>{status}</span>
         {pending > 0 && (
           <>
             {' • '}
@@ -219,14 +183,7 @@ const DeviceRow = ({ devices, index, style }) => {
         className={selectedDeviceId === item.id ? classes.selected : null}
       >
         <ListItemAvatar>
-          <Avatar
-            className={cx(
-              classes.avatar,
-              statusColor === 'success' && classes.avatarOnline,
-              statusColor === 'error' && classes.avatarOffline,
-              statusColor === 'neutral' && classes.avatarUnknown,
-            )}
-          >
+          <Avatar>
             <img className={classes.icon} src={mapIcons[mapIconKey(item.category)]} alt="" />
           </Avatar>
         </ListItemAvatar>

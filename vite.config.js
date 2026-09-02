@@ -56,10 +56,7 @@ export default defineConfig(() => ({
       manifest: {
         short_name: '${title}',
         name: '${description}',
-        theme_color: '#0A0B14',
-        background_color: '#0A0B14',
-        backgroundColor: '#0A0B14',
-        display: 'standalone',
+        theme_color: '${colorPrimary}',
         icons: [
           {
             src: 'pwa-64x64.png',

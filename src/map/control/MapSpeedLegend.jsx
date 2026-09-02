@@ -16,27 +16,6 @@ const useStyles = makeStyles()(() => ({
   colorBar: {
     background: `linear-gradient(to right, ${gradientStops})`,
     height: 10,
-    borderRadius: 999,
-    border: '1px solid rgba(255,255,255,0.08)',
-  },
-  legendContainer: {
-    background: 'rgba(22,22,31,0.72)',
-    backdropFilter: 'blur(16px)',
-    WebkitBackdropFilter: 'blur(16px)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    padding: '8px 10px',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    minWidth: 140,
-  },
-  legendLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: '#F5F5F7',
-    letterSpacing: '0.02em',
   },
 }));
 
@@ -56,25 +35,10 @@ const MapSpeedLegend = ({ positions }) => {
     const control = {
       onAdd: () => {
         container = document.createElement('div');
-        container.className = 'maplibregl-ctrl';
-        container.style.background = 'rgba(22,22,31,0.72)';
-        container.style.backdropFilter = 'blur(16px)';
-        container.style.WebkitBackdropFilter = 'blur(16px)';
-        container.style.border = '1px solid rgba(255,255,255,0.08)';
-        container.style.borderRadius = '8px';
-        container.style.padding = '8px 10px';
-        container.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)';
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.gap = '4px';
-        container.style.minWidth = '140px';
+        container.className = 'maplibregl-ctrl maplibregl-ctrl-scale';
         const colorBar = document.createElement('div');
         colorBar.className = classes.colorBar;
         const label = document.createElement('span');
-        label.style.fontSize = '11px';
-        label.style.fontWeight = '600';
-        label.style.color = '#F5F5F7';
-        label.style.letterSpacing = '0.02em';
         const min = Math.round(speedFromKnots(minSpeed, speedUnit));
         const max = Math.round(speedFromKnots(maxSpeed, speedUnit));
         label.textContent = `${min} - ${max} ${speedUnitString(speedUnit, t)}`;
