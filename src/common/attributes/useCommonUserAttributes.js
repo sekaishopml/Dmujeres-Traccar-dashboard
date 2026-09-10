@@ -131,6 +131,14 @@ export default (t) =>
         name: t('attributeWebLiveRouteLength'),
         type: 'number',
       },
+      'web.hideInaccurate': {
+        name: t('attributeWebHideInaccurate'),
+        type: 'boolean',
+      },
+      'web.accuracyThreshold': {
+        name: t('attributeWebAccuracyThreshold'),
+        type: 'number',
+      },
       mapLineWidth: {
         name: t('attributeMapLineWidth'),
         type: 'number',

@@ -3,7 +3,13 @@ import { useSelector } from 'react-redux';
 import { useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { map } from './core/MapView';
-import { formatTime, getStatusColor } from '../common/util/formatter';
+import { formatTime } from '../common/util/formatter';
+import {
+  DEVICE_NO_SIGNAL,
+  DEVICE_STOPPED,
+  getDeviceStateDisplayColor,
+  selectDeviceState,
+} from '../common/util/shift';
 import { mapIconKey } from './core/preloadImages';
 import { useAttributePreference } from '../common/util/preferences';
 import { useCatchCallback } from '../reactHelper';
@@ -38,6 +44,15 @@ const MapPositions = ({
   const createFeature = useCallback(
     (devices, position, selectedPositionId) => {
       const device = devices[position.deviceId];
+      // Sprite por estado: SIN SEÑAL → noSignal (naranja), DETENIDO →
+      // stopped (gris); el resto usa el color display (success/neutral).
+      const deviceState = selectDeviceState(device, position);
+      const statusColor =
+        deviceState === DEVICE_NO_SIGNAL
+          ? 'noSignal'
+          : deviceState === DEVICE_STOPPED
+            ? 'stopped'
+            : getDeviceStateDisplayColor(deviceState);
       let showDirection;
       switch (directionType) {
         case 'none':
@@ -56,7 +71,7 @@ const MapPositions = ({
         name: device.name,
         fixTime: formatTime(position.fixTime, 'seconds'),
         category: mapIconKey(device.category),
-        color: showStatus ? position.attributes.color || getStatusColor(device.status) : 'neutral',
+        color: showStatus ? statusColor : 'neutral',
         rotation: position.course,
         direction: showDirection,
       };

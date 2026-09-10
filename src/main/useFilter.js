@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import dayjs from 'dayjs';
+import { selectDeviceState } from '../common/util/shift';
 
 export default (
   keyword,
@@ -27,6 +28,11 @@ export default (
 
     const filtered = Object.values(devices)
       .filter((device) => !filter.statuses.length || filter.statuses.includes(device.status))
+      .filter(
+        (device) =>
+          !filter.deviceStates?.length ||
+          filter.deviceStates.includes(selectDeviceState(device, positions[device.id])),
+      )
       .filter(
         (device) =>
           !filter.groups.length || deviceGroups(device).some((id) => filter.groups.includes(id)),

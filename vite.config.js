@@ -8,8 +8,8 @@ export default defineConfig(() => ({
   server: {
     port: 3000,
     proxy: {
-      '/api/socket': 'ws://localhost:8082',
-      '/api': 'http://localhost:8082',
+      '/api/socket': 'ws://localhost:999',
+      '/api': 'http://localhost:999',
     },
   },
   build: {
@@ -48,10 +48,14 @@ export default defineConfig(() => ({
     svgr(),
     react(),
     VitePWA({
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png'],
       workbox: {
         navigateFallbackDenylist: [/^\/api/],
         globPatterns: ['**/*.{js,css,html,woff,woff2,mp3}'],
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
       },
       manifest: {
         short_name: '${title}',

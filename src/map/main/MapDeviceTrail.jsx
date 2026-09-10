@@ -3,6 +3,12 @@ import { useSelector } from 'react-redux';
 import MapRouteCoordinates from '../MapRouteCoordinates';
 import { useAttributePreference } from '../../common/util/preferences';
 import fetchOrThrow from '../../common/util/fetchOrThrow';
+import {
+  collapseNoisyRuns,
+  collapseStillClusters,
+  filterInaccurate,
+  filterSpikes,
+} from '../util/pathDecimation';
 
 const TRAIL_HOURS = 2;
 const MAX_POINTS = 50;
@@ -13,6 +19,11 @@ const MapDeviceTrail = () => {
     selectedDeviceId ? state.devices.items[selectedDeviceId]?.name : null,
   );
   const mapLiveRoutes = useAttributePreference('mapLiveRoutes', 'none');
+  const hideInaccurate = useAttributePreference('web.hideInaccurate', true);
+  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 80);
+  const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
+    ? Number(accuracyThresholdPref)
+    : 80;
 
   const [trail, setTrail] = useState([]);
 
@@ -31,18 +42,32 @@ const MapDeviceTrail = () => {
       .then((response) => response.json())
       .then((positions) => {
         positions.sort((a, b) => new Date(a.fixTime) - new Date(b.fixTime));
-        setTrail(positions.slice(-MAX_POINTS).map((p) => [p.longitude, p.latitude]));
+        let visible = filterSpikes(positions);
+        if (hideInaccurate) {
+          // Descartar re-entregas de red sin GNSS (mismo criterio que MapRoutePath).
+          visible = visible.filter(
+            (p) => p.attributes?.provider !== 'network' && p.attributes?.provider !== 'unknown',
+          );
+          const noisy = collapseNoisyRuns(filterInaccurate(visible, accuracyThreshold));
+          visible = collapseStillClusters(noisy.points).points;
+        }
+        setTrail(visible.slice(-MAX_POINTS).map((p) => [p.longitude, p.latitude]));
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [selectedDeviceId]);
+  }, [selectedDeviceId, hideInaccurate, accuracyThreshold]);
 
   if (!selectedDeviceId || !deviceName || mapLiveRoutes !== 'none' || trail.length < 2) {
     return null;
   }
 
   return (
-    <MapRouteCoordinates name={deviceName} coordinates={trail} deviceId={selectedDeviceId} showTitle={false} />
+    <MapRouteCoordinates
+      name={deviceName}
+      coordinates={trail}
+      deviceId={selectedDeviceId}
+      showTitle={false}
+    />
   );
 };
 

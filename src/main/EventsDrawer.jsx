@@ -22,6 +22,7 @@ import { makeStyles } from 'tss-react/mui';
 import DeleteIcon from '@mui/icons-material/Delete';
 import dayjs from 'dayjs';
 import { formatNotificationTitle, formatTime } from '../common/util/formatter';
+import { formatEventCauseDetail } from '../common/util/shift';
 import { useTranslation } from '../common/components/LocalizationProvider';
 import { eventsActions } from '../store';
 import fetchOrThrow from '../common/util/fetchOrThrow';
@@ -76,8 +77,10 @@ const EventsDrawer = ({ open, onClose }) => {
 
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [period, setPeriod] = useState('today');
-  const [customFrom, setCustomFrom] = useState(dayjs().subtract(1, 'hour').format('YYYY-MM-DDTHH:mm'));
-  const [customTo, setCustomTo] = useState(dayjs().format('YYYY-MM-DDTHH:mm'));
+  const [customFrom, setCustomFrom] = useState(() =>
+    dayjs().subtract(1, 'hour').format('YYYY-MM-DDTHH:mm'),
+  );
+  const [customTo, setCustomTo] = useState(() => dayjs().format('YYYY-MM-DDTHH:mm'));
   const [apiEvents, setApiEvents] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -92,7 +95,10 @@ const EventsDrawer = ({ open, onClose }) => {
       case 'today':
         return { from: now.startOf('day'), to: now.endOf('day') };
       case 'yesterday':
-        return { from: now.subtract(1, 'day').startOf('day'), to: now.subtract(1, 'day').endOf('day') };
+        return {
+          from: now.subtract(1, 'day').startOf('day'),
+          to: now.subtract(1, 'day').endOf('day'),
+        };
       case 'thisWeek':
         return { from: now.startOf('week'), to: now.endOf('week') };
       case 'thisMonth':
@@ -138,6 +144,12 @@ const EventsDrawer = ({ open, onClose }) => {
       attributes: { alarms: event.attributes?.alarm },
     });
 
+  const formatSecondary = (event) => {
+    const time = formatTime(event.eventTime, 'seconds');
+    const detail = formatEventCauseDetail(t, event);
+    return detail ? `${time} • ${detail}` : time;
+  };
+
   return (
     <Drawer anchor="right" open={open} onClose={onClose}>
       <Toolbar className={classes.toolbar} disableGutters>
@@ -165,7 +177,9 @@ const EventsDrawer = ({ open, onClose }) => {
           >
             <MenuItem value="">{t('notificationAlways')}</MenuItem>
             {deviceList.map((d) => (
-              <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+              <MenuItem key={d.id} value={d.id}>
+                {d.name}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -178,7 +192,9 @@ const EventsDrawer = ({ open, onClose }) => {
             onChange={(e) => setPeriod(e.target.value)}
           >
             {PERIODS.map((p) => (
-              <MenuItem key={p.value} value={p.value}>{t(p.label)}</MenuItem>
+              <MenuItem key={p.value} value={p.value}>
+                {t(p.label)}
+              </MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -206,13 +222,7 @@ const EventsDrawer = ({ open, onClose }) => {
           </Box>
         )}
 
-        <Button
-          variant="contained"
-          size="small"
-          onClick={handleShow}
-          disabled={loading}
-          fullWidth
-        >
+        <Button variant="contained" size="small" onClick={handleShow} disabled={loading} fullWidth>
           {loading ? <CircularProgress size={20} /> : t('reportShow')}
         </Button>
       </Box>
@@ -227,7 +237,7 @@ const EventsDrawer = ({ open, onClose }) => {
           >
             <ListItemText
               primary={`${devices[event.deviceId]?.name || ''} • ${formatType(event)}`}
-              secondary={formatTime(event.eventTime, 'seconds')}
+              secondary={formatSecondary(event)}
             />
             {apiEvents === null && (
               <IconButton

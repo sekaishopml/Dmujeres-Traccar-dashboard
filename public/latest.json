@@ -1,6 +1,6 @@
 {
-  "version": "1.0.45",
-  "versionCode": 46,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.45/DMujeres-Tracking-1.0.45.apk",
-  "notes": "Fix: sin duplicados, botón visible, hero compacto con colores suaves."
+  "version": "1.0.73",
+  "versionCode": 74,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.73/DMujeres-Tracking-1.0.73.apk",
+  "notes": "Duración de jornada viva (ya no se queda en 0h), tarjetas responsivas con fuente adaptativa y menú debug (5 toques) disponible en todos los builds."
 }

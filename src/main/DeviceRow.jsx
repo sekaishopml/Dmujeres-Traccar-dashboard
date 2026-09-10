@@ -1,177 +1,55 @@
-import { useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
-import {
-  IconButton,
-  Tooltip,
-  Avatar,
-  ListItemAvatar,
-  ListItemText,
-  ListItemButton,
-  Typography,
-} from '@mui/material';
-import BatteryFullIcon from '@mui/icons-material/BatteryFull';
-import BatteryChargingFullIcon from '@mui/icons-material/BatteryChargingFull';
-import Battery60Icon from '@mui/icons-material/Battery60';
-import BatteryCharging60Icon from '@mui/icons-material/BatteryCharging60';
-import Battery20Icon from '@mui/icons-material/Battery20';
-import BatteryCharging20Icon from '@mui/icons-material/BatteryCharging20';
-import ErrorIcon from '@mui/icons-material/Error';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
+import { Chip, ListItemAvatar, ListItemText, ListItemButton, Typography } from '@mui/material';
 import { devicesActions } from '../store';
-import {
-  formatAlarm,
-  formatBoolean,
-  formatPercentage,
-  formatStatus,
-  getStatusColor,
-} from '../common/util/formatter';
-import { useTranslation } from '../common/components/LocalizationProvider';
-import { mapIconKey, mapIcons } from '../map/core/preloadImages';
-import { useAdministrator } from '../common/util/permissions';
-import EngineIcon from '../resources/images/data/engine.svg?react';
 import { useAttributePreference } from '../common/util/preferences';
+import { useAdministrator } from '../common/util/permissions';
 import GeofencesValue from '../common/components/GeofencesValue';
 import DriverValue from '../common/components/DriverValue';
 import MotionBar from './components/MotionBar';
-
-dayjs.extend(relativeTime);
+import DeviceAvatar from './components/DeviceAvatar';
+import DevicePositionIcons from './components/DevicePositionIcons';
+import DeviceSecondaryText from './components/DeviceSecondaryText';
+import { useDeviceStatus } from './components/useDeviceStatus';
 
 const useStyles = makeStyles()((theme) => ({
-  icon: {
-    width: '25px',
-    height: '25px',
-    filter: 'brightness(0) invert(1)',
-  },
-  batteryText: {
-    fontSize: '0.75rem',
-    fontWeight: 'normal',
-    lineHeight: '0.875rem',
-  },
-  success: {
-    color: theme.palette.success.main,
-  },
-  warning: {
-    color: theme.palette.warning.main,
-  },
-  error: {
-    color: theme.palette.error.main,
-  },
-  neutral: {
-    color: theme.palette.neutral.main,
-  },
   selected: {
     backgroundColor: theme.palette.action.selected,
   },
 }));
 
-const BatterySparkline = ({ history }) => {
-  const points = useMemo(() => {
-    try {
-      const parsed = JSON.parse(history);
-      if (!Array.isArray(parsed)) return [];
-      const samples = parsed.filter(
-        (sample) => Array.isArray(sample) && sample.length >= 2 && Number.isFinite(sample[1]),
-      );
-      if (samples.length < 2) return [];
-      const values = samples.map((sample) => sample[1]);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const span = max - min || 1;
-      return samples.map((sample, index) => ({
-        x: (index / (samples.length - 1)) * 90,
-        y: 22 - ((sample[1] - min) / span) * 20 - 1,
-      }));
-    } catch {
-      return [];
-    }
-  }, [history]);
-  if (!points.length) return null;
-  return (
-    <svg width="90" height="24" viewBox="0 0 90 24" aria-label="batteryHistory">
-      <polyline
-        points={points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ')}
-        fill="none"
-        stroke="#0D47A1"
-        strokeWidth="1.5"
-      />
-    </svg>
-  );
+const resolveFieldValue = (item, position, field) => {
+  if (field === 'geofenceIds') {
+    const geofenceIds = position?.geofenceIds;
+    return geofenceIds?.length ? <GeofencesValue geofenceIds={geofenceIds} /> : null;
+  }
+  if (field === 'driverUniqueId') {
+    const driverUniqueId = position?.attributes?.driverUniqueId;
+    return driverUniqueId ? <DriverValue driverUniqueId={driverUniqueId} /> : null;
+  }
+  if (field === 'motion') {
+    return <MotionBar deviceId={item.id} />;
+  }
+  return item[field];
 };
 
 const DeviceRow = ({ devices, index, style }) => {
   const { classes } = useStyles();
   const dispatch = useDispatch();
-  const t = useTranslation();
 
   const admin = useAdministrator();
   const selectedDeviceId = useSelector((state) => state.devices.selectedId);
 
   const item = devices[index];
   const position = useSelector((state) => state.session.positions[item.id]);
+  const { stateLabel, stateMuiColor, stateDisplayColor } = useDeviceStatus(item);
+  const chipColor = stateMuiColor === 'neutral' ? 'default' : stateMuiColor;
 
   const devicePrimary = useAttributePreference('devicePrimary', 'name');
   const deviceSecondary = useAttributePreference('deviceSecondary', '');
 
-  const resolveFieldValue = (field) => {
-    if (field === 'geofenceIds') {
-      const geofenceIds = position?.geofenceIds;
-      return geofenceIds?.length ? <GeofencesValue geofenceIds={geofenceIds} /> : null;
-    }
-    if (field === 'driverUniqueId') {
-      const driverUniqueId = position?.attributes?.driverUniqueId;
-      return driverUniqueId ? <DriverValue driverUniqueId={driverUniqueId} /> : null;
-    }
-    if (field === 'motion') {
-      return <MotionBar deviceId={item.id} />;
-    }
-    return item[field];
-  };
-
-  const primaryValue = resolveFieldValue(devicePrimary);
-  const secondaryValue = resolveFieldValue(deviceSecondary);
-
-  const secondaryText = () => {
-    let status;
-    if (item.status === 'online' || !item.lastUpdate) {
-      status = formatStatus(item.status, t);
-    } else {
-      status = dayjs(item.lastUpdate).fromNow();
-    }
-    const pending = item.attributes?.['mobile.pending'];
-    const battery = item.attributes?.['mobile.battery'];
-    const batteryHistory = item.attributes?.['mobile.batteryHistory'];
-    const pendingColor = pending > 100 ? 'error' : pending > 50 ? 'warning' : null;
-    return (
-      <>
-        {secondaryValue && (
-          <>
-            {secondaryValue}
-            {' • '}
-          </>
-        )}
-        <span className={classes[getStatusColor(item.status)]}>{status}</span>
-        {pending > 0 && (
-          <>
-            {' • '}
-            <span className={pendingColor ? classes[pendingColor] : undefined}>
-              {pending} {t('sharedPending')}
-            </span>
-          </>
-        )}
-        {battery != null && (
-          <>
-            {' • '}
-            <span>🔋 {battery}%</span>
-          </>
-        )}
-        {batteryHistory && selectedDeviceId === item.id && (
-          <BatterySparkline history={batteryHistory} />
-        )}
-      </>
-    );
-  };
+  const primaryValue = resolveFieldValue(item, position, devicePrimary);
+  const secondaryValue = resolveFieldValue(item, position, deviceSecondary);
 
   return (
     <div style={style}>
@@ -183,71 +61,28 @@ const DeviceRow = ({ devices, index, style }) => {
         className={selectedDeviceId === item.id ? classes.selected : null}
       >
         <ListItemAvatar>
-          <Avatar>
-            <img className={classes.icon} src={mapIcons[mapIconKey(item.category)]} alt="" />
-          </Avatar>
+          <DeviceAvatar device={item} displayColor={stateDisplayColor} />
         </ListItemAvatar>
         <ListItemText
           primary={primaryValue}
-          secondary={secondaryText()}
+          secondary={<DeviceSecondaryText device={item} secondaryValue={secondaryValue} />}
           slots={{
             primary: Typography,
             secondary: Typography,
           }}
           slotProps={{
             primary: { noWrap: true },
-            secondary: { noWrap: true },
+            secondary: { noWrap: true, 'aria-live': 'polite' },
           }}
         />
-        {position && (
-          <>
-            {position.attributes.hasOwnProperty('alarm') && (
-              <Tooltip title={`${t('eventAlarm')}: ${formatAlarm(position.attributes.alarm, t)}`}>
-                <IconButton size="small">
-                  <ErrorIcon fontSize="small" className={classes.error} />
-                </IconButton>
-              </Tooltip>
-            )}
-            {position.attributes.hasOwnProperty('ignition') && (
-              <Tooltip
-                title={`${t('positionIgnition')}: ${formatBoolean(position.attributes.ignition, t)}`}
-              >
-                <IconButton size="small">
-                  {position.attributes.ignition ? (
-                    <EngineIcon width={20} height={20} className={classes.success} />
-                  ) : (
-                    <EngineIcon width={20} height={20} className={classes.neutral} />
-                  )}
-                </IconButton>
-              </Tooltip>
-            )}
-            {position.attributes.hasOwnProperty('batteryLevel') && (
-              <Tooltip
-                title={`${t('positionBatteryLevel')}: ${formatPercentage(position.attributes.batteryLevel)}`}
-              >
-                <IconButton size="small">
-                  {(position.attributes.batteryLevel > 70 &&
-                    (position.attributes.charge ? (
-                      <BatteryChargingFullIcon fontSize="small" className={classes.success} />
-                    ) : (
-                      <BatteryFullIcon fontSize="small" className={classes.success} />
-                    ))) ||
-                    (position.attributes.batteryLevel > 30 &&
-                      (position.attributes.charge ? (
-                        <BatteryCharging60Icon fontSize="small" className={classes.warning} />
-                      ) : (
-                        <Battery60Icon fontSize="small" className={classes.warning} />
-                      ))) ||
-                    (position.attributes.charge ? (
-                      <BatteryCharging20Icon fontSize="small" className={classes.error} />
-                    ) : (
-                      <Battery20Icon fontSize="small" className={classes.error} />
-                    ))}
-                </IconButton>
-              </Tooltip>
-            )}
-          </>
-        )}
+        <Chip
+          label={stateLabel}
+          color={chipColor}
+          size="small"
+          aria-live="polite"
+          sx={{ fontWeight: 500 }}
+        />
+        <DevicePositionIcons position={position} />
       </ListItemButton>
     </div>
   );

@@ -1,5 +1,9 @@
 import { grey, green, indigo } from '@mui/material/colors';
 
+export const SHIFT_RED = '#EB0045';
+export const SHIFT_WHITE = '#FFFFFF';
+export const SHIFT_GREEN = green[800];
+
 const validatedColor = (color) => (/^#([0-9A-Fa-f]{3}){1,2}$/.test(color) ? color : null);
 
 export default (server, darkMode) => ({
@@ -15,6 +19,9 @@ export default (server, darkMode) => ({
     main:
       validatedColor(server?.attributes?.colorSecondary) || (darkMode ? green[200] : green[800]),
   },
+  error: {
+    main: SHIFT_RED,
+  },
   neutral: {
     main: grey[500],
   },
@@ -23,5 +30,10 @@ export default (server, darkMode) => ({
   },
   alwaysDark: {
     main: grey[900],
+  },
+  shift: {
+    onDutyOnline: SHIFT_GREEN,
+    onDutyOffline: SHIFT_RED,
+    offShift: SHIFT_RED,
   },
 });

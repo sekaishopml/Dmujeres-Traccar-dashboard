@@ -66,11 +66,63 @@ export const mapIconKey = (category) => {
 
 export const mapImages = {};
 
+// Fondos de los sprites por estado (pictograma blanco, mismo patrón que el
+// antiguo offShift): SIN SEÑAL naranja y DETENIDO gris.
+export const NO_SIGNAL_BACKGROUND = '#ED6C02';
+export const STOPPED_BACKGROUND = '#2E7D32';
+export const STATE_FOREGROUND = '#FFFFFF';
+
 const theme = createTheme({
   palette: {
     neutral: { main: grey[500] },
   },
 });
+
+const tintImage = (image, color) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width * devicePixelRatio;
+  canvas.height = image.height * devicePixelRatio;
+  canvas.style.width = `${image.width}px`;
+  canvas.style.height = `${image.height}px`;
+
+  const context = canvas.getContext('2d');
+  context.save();
+  context.fillStyle = color;
+  context.globalAlpha = 1;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.globalCompositeOperation = 'destination-atop';
+  context.globalAlpha = 1;
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  context.restore();
+
+  return canvas;
+};
+
+const prepareStateIcon = (background, icon, backgroundColor) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = background.width * devicePixelRatio;
+  canvas.height = background.height * devicePixelRatio;
+  canvas.style.width = `${background.width}px`;
+  canvas.style.height = `${background.height}px`;
+
+  const context = canvas.getContext('2d');
+  context.drawImage(tintImage(background, backgroundColor), 0, 0, canvas.width, canvas.height);
+
+  if (icon) {
+    const iconRatio = 0.5;
+    const imageWidth = canvas.width * iconRatio;
+    const imageHeight = canvas.height * iconRatio;
+    context.drawImage(
+      tintImage(icon, STATE_FOREGROUND),
+      (canvas.width - imageWidth) / 2,
+      (canvas.height - imageHeight) / 2,
+      imageWidth,
+      imageHeight,
+    );
+  }
+
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+};
 
 export default async () => {
   const background = await loadImage(backgroundSvg);
@@ -87,6 +139,16 @@ export default async () => {
               icon,
               theme.palette[color].main,
             );
+          }),
+        );
+      });
+      [
+        ['noSignal', NO_SIGNAL_BACKGROUND],
+        ['stopped', STOPPED_BACKGROUND],
+      ].forEach(([name, backgroundColor]) => {
+        results.push(
+          loadImage(mapIcons[category]).then((icon) => {
+            mapImages[`${category}-${name}`] = prepareStateIcon(background, icon, backgroundColor);
           }),
         );
       });

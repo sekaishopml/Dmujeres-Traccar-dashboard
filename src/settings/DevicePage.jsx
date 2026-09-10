@@ -64,7 +64,7 @@ const DevicePage = () => {
       return;
     }
     const intervalSeconds = Number(item.attributes?.['mobile.intervalSeconds'] || 10);
-    const bufferMax = Number(item.attributes?.['mobile.bufferMax'] || 500);
+    const bufferMax = Number(item.attributes?.['mobile.bufferMax'] || 5000);
     const bufferPolicy = item.attributes?.['mobile.bufferPolicy'] || 'drop_oldest';
     const ackTimeoutSeconds = Number(item.attributes?.['mobile.ackTimeoutSeconds'] || 15);
     const maxRetries = Number(item.attributes?.['mobile.maxRetries'] || 30);
@@ -148,7 +148,7 @@ const DevicePage = () => {
                 inputProps={{ min: 3, max: 300 }}
               />
               <TextField
-                value={item.attributes?.['mobile.bufferMax'] || 500}
+                value={item.attributes?.['mobile.bufferMax'] || 5000}
                 onChange={(event) =>
                   setItem({
                     ...item,
@@ -160,7 +160,8 @@ const DevicePage = () => {
                 }
                 label="Buffer máximo"
                 type="number"
-                inputProps={{ min: 10, max: 5000 }}
+                inputProps={{ min: 10, max: 10000 }}
+                helperText="5000 ≈ 14 h sin señal a 10 s; 500 solo cubre ~80 min"
               />
               <SelectField
                 value={item.attributes?.['mobile.bufferPolicy'] || 'drop_oldest'}

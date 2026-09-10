@@ -1,5 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { IconButton, MenuItem, Paper, Select, Slider, Toolbar, Typography } from '@mui/material';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import {
+  Collapse,
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Select,
+  Slider,
+  Toolbar,
+  Typography,
+} from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
 import TuneIcon from '@mui/icons-material/Tune';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -7,12 +19,17 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import FastForwardIcon from '@mui/icons-material/FastForward';
 import FastRewindIcon from '@mui/icons-material/FastRewind';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import MapView from '../map/core/MapView';
+import MapView, { map } from '../map/core/MapView';
+import { toMapCoordinates } from '../map/core/mapUtil';
 import MapRoutePath from '../map/MapRoutePath';
 import MapRoutePoints from '../map/MapRoutePoints';
-import MapPositions from '../map/MapPositions';
+import MapReplayMarker from '../map/MapReplayMarker';
+import { bearingDegrees, detectStops, shouldCut } from '../map/util/pathDecimation';
 import { formatTime } from '../common/util/formatter';
 import ReportFilter from '../reports/components/ReportFilter';
 import { useTranslation } from '../common/components/LocalizationProvider';
@@ -24,6 +41,7 @@ import MapScale from '../map/MapScale';
 import BackIcon from '../common/components/BackIcon';
 import fetchOrThrow from '../common/util/fetchOrThrow';
 import MapOverlay from '../map/overlay/MapOverlay';
+import { useAttributePreference } from '../common/util/preferences';
 
 const useStyles = makeStyles()((theme) => ({
   root: {
@@ -79,11 +97,30 @@ const useStyles = makeStyles()((theme) => ({
   },
 }));
 
+// Duración (ms) de un tramo entre fixes consecutivos: misma compresión que el
+// antiguo play por setTimeout (delta real / velocidad, acotado 100-2000 ms),
+// pero el marcador la recorre interpolada en vez de saltar al final.
+const segmentDurationMs = (current, next, replaySpeed) => {
+  if (current && next) {
+    const currTime = Date.parse(current.fixTime || current.deviceTime || current.serverTime);
+    const nextTime = Date.parse(next.fixTime || next.deviceTime || next.serverTime);
+    if (Number.isFinite(currTime) && Number.isFinite(nextTime)) {
+      const deltaMs = nextTime - currTime;
+      if (deltaMs > 0) {
+        return Math.min(2000, Math.max(100, deltaMs / (replaySpeed * 5)));
+      }
+    }
+  }
+  return 500 / replaySpeed;
+};
+
 const ReplayPage = () => {
   const t = useTranslation();
   const { classes } = useStyles();
   const navigate = useNavigate();
-  const timerRef = useRef();
+  const markerRef = useRef(null);
+  const segRef = useRef(null);
+  const loadRef = useRef(null);
 
   const [searchParams] = useSearchParams();
 
@@ -99,8 +136,45 @@ const ReplayPage = () => {
   const [loading, setLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const mapFollowPref = useAttributePreference('mapFollow', true);
+  const [follow, setFollow] = useState(mapFollowPref);
+  const [stopsOpen, setStopsOpen] = useState(false);
+  const stops = useMemo(() => detectStops(positions), [positions]);
+  const [routeStats, setRouteStats] = useState({
+    total: 0,
+    shown: 0,
+    hidden: 0,
+    provider: 0,
+    inaccurate: 0,
+    collapsed: 0,
+    noisy: 0,
+    spikes: 0,
+  });
+
+  const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
+  const routeFiltering = hideInaccuratePref;
+  const hiddenCount =
+    routeStats.hidden +
+    routeStats.collapsed +
+    (routeStats.noisy || 0) +
+    (routeStats.spikes || 0) +
+    (routeStats.dupes || 0);
+
+  const handleRouteStats = useCallback((stats) => {
+    setRouteStats(stats);
+  }, []);
 
   const loaded = Boolean(from && to && !loading && positions.length);
+
+  // Espejos para el loop rAF: el efecto solo depende de [playing, positions]
+  // y lee el resto por refs, así ni el slider ni la velocidad ni el follow
+  // reinician la animación a mitad de tramo.
+  const indexRef = useRef(index);
+  indexRef.current = index;
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
+  const followRef = useRef(follow);
+  followRef.current = follow;
 
   const deviceName = useSelector((state) => {
     if (selectedDeviceId) {
@@ -118,44 +192,127 @@ const ReplayPage = () => {
     }
   }, [from, to, setPositions]);
 
+  // Play fluido: requestAnimationFrame interpola lat/lon entre fixes
+  // consecutivos según su delta temporal real / velocidad (x1..x16). El
+  // marcador se empuja directo a la fuente maplibre (sin setState por
+  // frame); solo hay setIndex al cambiar de fix, para slider y contador.
+  // Los cortes de línea (gap/teleport) se saltan sin volar sobre el hueco.
   useEffect(() => {
     if (!playing || positions.length === 0) {
-      clearTimeout(timerRef.current);
+      segRef.current = null;
       return undefined;
     }
-    if (index >= positions.length - 1) {
-      clearTimeout(timerRef.current);
-      setPlaying(false);
-      return undefined;
-    }
-    const current = positions[index];
-    const next = positions[index + 1];
-    let deltaMs = NaN;
-    if (current && next) {
-      const currTime = Date.parse(current.fixTime || current.deviceTime || current.serverTime);
-      const nextTime = Date.parse(next.fixTime || next.deviceTime || next.serverTime);
-      if (Number.isFinite(currTime) && Number.isFinite(nextTime)) {
-        deltaMs = nextTime - currTime;
+    let cancelled = false;
+    let raf = 0;
+    const centerOn = (longitude, latitude) => {
+      map.jumpTo({ center: toMapCoordinates(longitude, latitude) });
+    };
+    const step = (now) => {
+      if (cancelled) {
+        return;
       }
-    }
-    let delay;
-    if (Number.isFinite(deltaMs) && deltaMs > 0) {
-      delay = Math.min(2000, Math.max(100, deltaMs / (speed * 5)));
-    } else {
-      delay = 500 / speed;
-    }
-    timerRef.current = setTimeout(() => {
-      setIndex((prev) => Math.min(prev + 1, positions.length - 1));
-    }, delay);
-    return () => clearTimeout(timerRef.current);
-  }, [playing, positions, speed, index]);
+      const list = positions;
+      const replaySpeed = speedRef.current;
+      const currentIndex = indexRef.current;
+      if (currentIndex >= list.length - 1) {
+        setPlaying(false);
+        return;
+      }
+      let seg = segRef.current;
+      if (!seg || seg.from !== currentIndex || seg.to !== currentIndex + 1) {
+        const from = list[currentIndex];
+        const to = list[currentIndex + 1];
+        if (shouldCut(from, to)) {
+          setIndex(currentIndex + 1);
+          markerRef.current?.setPosition({ longitude: to.longitude, latitude: to.latitude }, to);
+          if (followRef.current) {
+            centerOn(to.longitude, to.latitude);
+          }
+          raf = requestAnimationFrame(step);
+          return;
+        }
+        seg = {
+          from: currentIndex,
+          to: currentIndex + 1,
+          start: now,
+          duration: segmentDurationMs(from, to, replaySpeed),
+          speed: replaySpeed,
+          bearing: bearingDegrees(from, to),
+        };
+        segRef.current = seg;
+      }
+      if (seg.speed !== replaySpeed) {
+        // Cambio de velocidad a mitad de tramo: conserva el progreso.
+        const progress = seg.duration > 0 ? (now - seg.start) / seg.duration : 1;
+        seg.duration = segmentDurationMs(list[seg.from], list[seg.to], replaySpeed);
+        seg.start = now - progress * seg.duration;
+        seg.speed = replaySpeed;
+      }
+      const from = list[seg.from];
+      const to = list[seg.to];
+      const progress = seg.duration > 0 ? (now - seg.start) / seg.duration : 1;
+      if (progress >= 1) {
+        setIndex(seg.to);
+        segRef.current = null;
+        markerRef.current?.setPosition(
+          { longitude: to.longitude, latitude: to.latitude, rotation: seg.bearing },
+          to,
+        );
+        if (followRef.current) {
+          centerOn(to.longitude, to.latitude);
+        }
+        if (seg.to >= list.length - 1) {
+          setPlaying(false);
+          return;
+        }
+      } else {
+        const longitude = from.longitude + (to.longitude - from.longitude) * progress;
+        const latitude = from.latitude + (to.latitude - from.latitude) * progress;
+        markerRef.current?.setPosition({ longitude, latitude, rotation: seg.bearing }, to);
+        if (followRef.current) {
+          centerOn(longitude, latitude);
+        }
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      segRef.current = null;
+    };
+  }, [playing, positions]);
 
+  // Si el usuario arrastra el mapa, se pausa el follow hasta pulsar
+  // "seguir" (o reanudar con play).
   useEffect(() => {
-    if (index >= positions.length - 1) {
-      clearTimeout(timerRef.current);
-      setPlaying(false);
+    const handleDrag = () => setFollow(false);
+    map.on('dragstart', handleDrag);
+    return () => map.off('dragstart', handleDrag);
+  }, []);
+
+  // Con follow activo y en pausa, el slider recentra la cámara en el fix.
+  // La carga inicial se salta para no pelear con el fitBounds de MapCamera.
+  useEffect(() => {
+    if (loadRef.current !== positions) {
+      loadRef.current = positions;
+      return;
     }
-  }, [index, positions]);
+    if (playing || !follow || index >= positions.length) {
+      return;
+    }
+    const fix = positions[index];
+    if (fix) {
+      map.jumpTo({ center: toMapCoordinates(fix.longitude, fix.latitude) });
+    }
+  }, [positions, index, playing, follow]);
+
+  const handleTogglePlay = () => {
+    if (!playing) {
+      setFollow(true);
+    }
+    setPlaying(!playing);
+  };
 
   const onPointClick = useCallback(
     (_, index) => {
@@ -199,18 +356,28 @@ const ReplayPage = () => {
     window.location.assign(`/api/positions/kml?${query.toString()}`);
   };
 
+  const formatStopDuration = (durationMs) => {
+    const totalMinutes = Math.max(1, Math.round(durationMs / 60000));
+    if (totalMinutes < 60) {
+      return `${totalMinutes} min`;
+    }
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+  };
+
   return (
     <div className={classes.root}>
       <MapView>
         <MapOverlay />
         <MapGeofence />
-        <MapRoutePath positions={positions} />
+        <MapRoutePath positions={positions} onStats={handleRouteStats} />
         <MapRoutePoints positions={positions} onClick={onPointClick} showSpeedControl />
         {index < positions.length && (
-          <MapPositions
-            positions={[positions[index]]}
+          <MapReplayMarker
+            position={positions[index]}
+            markerRef={markerRef}
             onMarkerClick={onMarkerClick}
-            titleField="fixTime"
           />
         )}
       </MapView>
@@ -277,7 +444,7 @@ const ReplayPage = () => {
                   </IconButton>
                   <IconButton
                     size="small"
-                    onClick={() => setPlaying(!playing)}
+                    onClick={handleTogglePlay}
                     disabled={index >= positions.length - 1}
                     sx={{ color: '#ffffff' }}
                   >
@@ -310,10 +477,77 @@ const ReplayPage = () => {
                       <MenuItem key={value} value={value}>{`x${value}`}</MenuItem>
                     ))}
                   </Select>
+                  <IconButton
+                    size="small"
+                    title={t('deviceFollow')}
+                    onClick={() => setFollow((value) => !value)}
+                    sx={{ color: '#ffffff', opacity: follow ? 1 : 0.4 }}
+                  >
+                    <MyLocationIcon fontSize="small" />
+                  </IconButton>
                 </div>
                 <Typography variant="caption" sx={{ color: '#ffffff' }}>
                   {formatTime(positions[index].fixTime, 'seconds')}
                 </Typography>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: 4,
+                }}
+              >
+                {routeFiltering ? (
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    title={`${routeStats.inaccurate || 0} inexactos (valid/accuracy) · ${routeStats.provider || 0} red sin GNSS · ${routeStats.dupes || 0} duplicados · ${routeStats.spikes || 0} picos · ${routeStats.noisy || 0} ruido · ${routeStats.collapsed || 0} paradas largas · ${routeStats.bridges || 0} cortes de cuerda`}
+                  >
+                    {`${routeStats.shown} / ${routeStats.total} · ${hiddenCount} ${t('reportHiddenPoints')}`}
+                  </Typography>
+                ) : (
+                  <span />
+                )}
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <ListItemButton dense onClick={() => setStopsOpen((open) => !open)} sx={{ px: 0 }}>
+                  <ListItemText
+                    primary={`${t('reportReplayStops')} (${stops.length})`}
+                    primaryTypographyProps={{ variant: 'subtitle2' }}
+                  />
+                  {stopsOpen ? (
+                    <ExpandLessIcon fontSize="small" />
+                  ) : (
+                    <ExpandMoreIcon fontSize="small" />
+                  )}
+                </ListItemButton>
+                <Collapse in={stopsOpen} timeout="auto">
+                  {stops.length ? (
+                    <List dense disablePadding sx={{ maxHeight: 180, overflow: 'auto' }}>
+                      {stops.map((stop) => (
+                        <ListItemButton
+                          key={stop.index}
+                          dense
+                          selected={index >= stop.index && index < stop.index + stop.pointCount}
+                          onClick={() => {
+                            setPlaying(false);
+                            setIndex(stop.index);
+                          }}
+                        >
+                          <ListItemText
+                            primary={`${formatTime(stop.arrivalTime, 'time')} – ${formatTime(stop.departureTime, 'time')}`}
+                            secondary={`${formatStopDuration(stop.durationMs)} · ${stop.pointCount} ${t('reportReplayPoints')}`}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="caption" color="textSecondary">
+                      {t('reportReplayNoStops')}
+                    </Typography>
+                  )}
+                </Collapse>
               </div>
             </>
           )}

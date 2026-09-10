@@ -295,6 +295,39 @@ const PreferencesPage = () => {
                     control={
                       <Checkbox
                         checked={
+                          attributes.hasOwnProperty('web.hideInaccurate')
+                            ? attributes['web.hideInaccurate']
+                            : true
+                        }
+                        onChange={(e) =>
+                          setAttributes({ ...attributes, 'web.hideInaccurate': e.target.checked })
+                        }
+                      />
+                    }
+                    label={t('attributeWebHideInaccurate')}
+                  />
+                  <TextField
+                    label={t('attributeWebAccuracyThreshold')}
+                    helperText={t('attributeWebAccuracyThresholdHelp')}
+                    type="number"
+                    value={attributes['web.accuracyThreshold'] ?? 80}
+                    onChange={(e) =>
+                      setAttributes({
+                        ...attributes,
+                        'web.accuracyThreshold':
+                          e.target.value === '' ? 80 : Math.max(30, Number(e.target.value)),
+                      })
+                    }
+                    disabled={
+                      attributes.hasOwnProperty('web.hideInaccurate')
+                        ? !attributes['web.hideInaccurate']
+                        : false
+                    }
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={
                           attributes.hasOwnProperty('mapOnSelect') ? attributes.mapOnSelect : true
                         }
                         onChange={(e) =>

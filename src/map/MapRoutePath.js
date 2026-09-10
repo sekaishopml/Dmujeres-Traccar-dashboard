@@ -5,15 +5,19 @@ import getSpeedColor from '../common/util/colors';
 import { useAttributePreference } from '../common/util/preferences';
 import { toMapCoordinates } from './core/mapUtil';
 import {
+  cleanRoutePositions,
   DECIMATION_THRESHOLD,
   filterSpikes,
   MAX_GAP_MS,
+  shouldCut,
   simplify,
-  splitByGap,
+  SMOOTH_FLOOR_M,
+  smoothChaikinOnce,
+  splitByGapAndTeleport,
   toleranceForZoom,
 } from './util/pathDecimation';
 
-const MapRoutePath = ({ positions }) => {
+const MapRoutePath = ({ positions, onStats }) => {
   const id = useId();
 
   const [zoom, setZoom] = useState(() => map.getZoom());
@@ -40,6 +44,12 @@ const MapRoutePath = ({ positions }) => {
 
   const mapLineWidth = useAttributePreference('mapLineWidth', 2);
   const mapLineOpacity = useAttributePreference('mapLineOpacity', 1);
+  const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
+  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 80);
+  const hideInaccurate = hideInaccuratePref;
+  const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
+    ? Number(accuracyThresholdPref)
+    : 80;
 
   useEffect(() => {
     map.addSource(id, {
@@ -77,29 +87,47 @@ const MapRoutePath = ({ positions }) => {
     };
   }, [id]);
 
-  const features = useMemo(() => {
-    const speeds = positions.map((p) => Number(p.speed)).filter(Number.isFinite);
+  const { features, stats } = useMemo(() => {
+    // Vista limpia solo para el TRAZO: positions (crudos) se deja intacto para
+    // slider/contador. La limpieza vive en cleanRoutePositions (pipeline único
+    // compartido con las flechas). Siempre vista limpia: sin modo crudo; solo
+    // se segmenta (gaps/teleports) para no unir con rectas lo que no debe
+    // unirse. Ruido (picos + ping-pong + rachas random-walk) siempre fuera con
+    // filtro activo; además se excluyen valid === false o accuracy > umbral, y
+    // las paradas LARGAS y quietas se colapsan a su mediana. Tras simplify
+    // (con piso mínimo SMOOTH_FLOOR_M) se aplica una pasada de Chaikin por
+    // chunk para línea limpia estilo Traccar original.
+    const {
+      points: working,
+      stats,
+      cuts,
+    } = cleanRoutePositions(positions, {
+      hideInaccurate,
+      accuracyThreshold,
+    });
+
+    const speeds = working.map((p) => Number(p.speed)).filter(Number.isFinite);
     const speedCapKnots = 65;
     const minSpeed = speeds.length ? Math.max(0, Math.min(...speeds)) : 0;
     const maxSpeed = speeds.length ? Math.min(Math.max(...speeds), speedCapKnots) : speedCapKnots;
 
-    let decimated = positions;
-    if (positions.length > DECIMATION_THRESHOLD) {
-      const tolerance = toleranceForZoom(zoom);
-      decimated = splitByGap(positions, MAX_GAP_MS).flatMap((chunk) => simplify(filterSpikes(chunk), tolerance));
+    let decimated = working;
+    if (working.length > DECIMATION_THRESHOLD) {
+      const tolerance = Math.max(toleranceForZoom(zoom), SMOOTH_FLOOR_M / 111320);
+      decimated = splitByGapAndTeleport(working, MAX_GAP_MS).flatMap((chunk) =>
+        smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)),
+      );
     }
 
     const features = [];
     for (let i = 0; i < decimated.length - 1; i += 1) {
       const current = decimated[i];
       const next = decimated[i + 1];
-      const currentTime = Date.parse(current.fixTime || current.deviceTime || current.serverTime);
-      const nextTime = Date.parse(next.fixTime || next.deviceTime || next.serverTime);
-      if (
-        Number.isFinite(currentTime) &&
-        Number.isFinite(nextTime) &&
-        nextTime - currentTime > MAX_GAP_MS
-      ) {
+      // Corta gaps temporales y teleports (simplify puede crear un salto al
+      // quitar intermedios): nunca una recta sobre un salto imposible.
+      // También corta cuerdas que saltan sobre puntos ocultos (ver cuts de
+      // cleanRoutePositions): la recta cruzando cuadras no se dibuja.
+      if (shouldCut(current, next, MAX_GAP_MS) || (cuts && cuts.has(next))) {
         continue;
       }
       features.push({
@@ -118,8 +146,17 @@ const MapRoutePath = ({ positions }) => {
         },
       });
     }
-    return features;
-  }, [positions, zoom, reportColor, mapLineWidth, mapLineOpacity]);
+    // shown es estable ante el zoom (pre-decimación): total - ocultos - colapsados.
+    return { features, stats };
+  }, [
+    positions,
+    zoom,
+    reportColor,
+    mapLineWidth,
+    mapLineOpacity,
+    hideInaccurate,
+    accuracyThreshold,
+  ]);
 
   useEffect(() => {
     map.getSource(id)?.setData({
@@ -127,6 +164,12 @@ const MapRoutePath = ({ positions }) => {
       features,
     });
   }, [features, id]);
+
+  useEffect(() => {
+    if (onStats) {
+      onStats(stats);
+    }
+  }, [stats, onStats]);
 
   return null;
 };

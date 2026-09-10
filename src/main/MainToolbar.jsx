@@ -27,6 +27,13 @@ import AddIcon from '@mui/icons-material/Add';
 import TuneIcon from '@mui/icons-material/Tune';
 import { useTranslation } from '../common/components/LocalizationProvider';
 import { useDeviceReadonly } from '../common/util/permissions';
+import {
+  DEVICE_DISABLED,
+  DEVICE_NO_SIGNAL,
+  DEVICE_ONLINE,
+  DEVICE_STOPPED,
+  selectDeviceState,
+} from '../common/util/shift';
 import DeviceRow from './DeviceRow';
 
 const useStyles = makeStyles()((theme) => ({
@@ -65,6 +72,7 @@ const MainToolbar = ({
 
   const groups = useSelector((state) => state.groups.items);
   const devices = useSelector((state) => state.devices.items);
+  const positions = useSelector((state) => state.session.positions);
   const geofences = useSelector((state) => state.geofences.items);
 
   const toolbarRef = useRef();
@@ -74,6 +82,10 @@ const MainToolbar = ({
 
   const deviceStatusCount = (status) =>
     Object.values(devices).filter((d) => d.status === status).length;
+
+  const deviceStateCount = (deviceState) =>
+    Object.values(devices).filter((d) => selectDeviceState(d, positions[d.id]) === deviceState)
+      .length;
 
   return (
     <Toolbar ref={toolbarRef} className={classes.toolbar}>
@@ -94,7 +106,10 @@ const MainToolbar = ({
                 color="info"
                 variant="dot"
                 invisible={
-                  !filter.statuses.length && !filter.groups.length && !filter.geofences.length
+                  !filter.statuses.length &&
+                  !filter.groups.length &&
+                  !filter.geofences.length &&
+                  !filter.deviceStates?.length
                 }
               >
                 <TuneIcon fontSize="small" />
@@ -153,6 +168,28 @@ const MainToolbar = ({
               <MenuItem value="online">{`${t('deviceStatusOnline')} (${deviceStatusCount('online')})`}</MenuItem>
               <MenuItem value="offline">{`${t('deviceStatusOffline')} (${deviceStatusCount('offline')})`}</MenuItem>
               <MenuItem value="unknown">{`${t('deviceStatusUnknown')} (${deviceStatusCount('unknown')})`}</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl>
+            <InputLabel>{t('deviceStateFilter')}</InputLabel>
+            <Select
+              label={t('deviceStateFilter')}
+              value={filter.deviceStates || []}
+              onChange={(e) => setFilter({ ...filter, deviceStates: e.target.value })}
+              multiple
+            >
+              <MenuItem
+                value={DEVICE_DISABLED}
+              >{`${t('deviceDisabled')} (${deviceStateCount(DEVICE_DISABLED)})`}</MenuItem>
+              <MenuItem
+                value={DEVICE_NO_SIGNAL}
+              >{`${t('deviceNoSignal')} (${deviceStateCount(DEVICE_NO_SIGNAL)})`}</MenuItem>
+              <MenuItem
+                value={DEVICE_STOPPED}
+              >{`${t('deviceStopped')} (${deviceStateCount(DEVICE_STOPPED)})`}</MenuItem>
+              <MenuItem
+                value={DEVICE_ONLINE}
+              >{`${t('deviceOnDutyOnline')} (${deviceStateCount(DEVICE_ONLINE)})`}</MenuItem>
             </Select>
           </FormControl>
           <FormControl>
