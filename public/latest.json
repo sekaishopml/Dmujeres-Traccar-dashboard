@@ -1,6 +1,6 @@
 {
-  "version": "1.0.73",
-  "versionCode": 74,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.73/DMujeres-Tracking-1.0.73.apk",
-  "notes": "Duración de jornada viva (ya no se queda en 0h), tarjetas responsivas con fuente adaptativa y menú debug (5 toques) disponible en todos los builds."
+  "version": "1.0.74",
+  "versionCode": 75,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.74/DMujeres-Tracking-1.0.74.apk",
+  "notes": "Ya no se pierden permisos al actualizar: la app detecta la actualización y reactiva batería, notificaciones y ubicación si el sistema los revocó."
 }
