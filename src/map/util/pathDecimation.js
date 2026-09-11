@@ -285,7 +285,9 @@ function mergeNearbyStops(stops) {
  * STOP_RADIUS_M, hasta STOP_MAX_OUTLIERS outliers con velocidad <
  * STOP_MAX_SPEED_KN y cierre al alejarse rápido) de 2+ puntos y duración >=
  * minDurationMs. No modifica el array original. Las paradas consecutivas del
- * mismo lugar se fusionan (mergeNearbyStops). Devuelve [{ index, latitude,
+ * mismo lugar se fusionan (mergeNearbyStops) y cada una se valida como evento
+ * real de viaje (filterPhantomStops: movimiento >150 m con 3+ fixes en 10 min
+ * antes/después, o borde de rango). Devuelve [{ index, latitude,
  * longitude, arrivalTime, departureTime, durationMs, pointCount }] donde index
  * es la posición de llegada en el array de entrada y las coordenadas son la
  * mediana de la racha (misma lógica que medianOfRun). Las rachas de un solo
@@ -333,13 +335,52 @@ export function detectStops(
     });
   };
   forEachRobustRun(positions, radiusM, maxSpeedKn, maxOutliers, flush);
-  return mergeNearbyStops(stops);
+  return filterPhantomStops(mergeNearbyStops(stops), positions);
 }
 
-/** Velocidad implícita (m/s) mínima de un tramo para sospechar ruido en racha.
- * 8 m/s: el random-walk multipath real se mueve a 5-20 m/s con Doppler en 0;
- * el viaje real a esa velocidad reporta Doppler coherente (ver NOISY_MAX).
- * Viajes largos se protegen por diámetro/tiempo máximos, no por velocidad. */
+/** Movimiento (m) exigido antes o después para que una parada sea real. */
+export const STOP_MOVE_RADIUS_M = 150;
+
+/** Ventana (ms) antes/después donde se busca ese movimiento. */
+export const STOP_MOVE_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Valida que una parada sea un evento real de viaje (movimiento + tiempo) y
+ * no deriva de GPS: exige haberse alejado > STOP_MOVE_RADIUS_M en los 10 min
+ * ANTES de llegar o en los 10 min DESPUÉS de salir, con al menos 3 fixes
+ * (un salto fantasma aislado no valida). Las paradas que tocan un borde del
+ * rango se conservan (no hay antes/después que juzgar).
+ */
+function filterPhantomStops(stops, positions) {
+  const FAR_COUNT = 3;
+  const movedEnough = (fromMs, toMs, stop) => {
+    let far = 0;
+    for (let i = 0; i < positions.length; i += 1) {
+      const t = timeOf(positions[i]);
+      if (!Number.isFinite(t) || t < fromMs || t > toMs) {
+        continue;
+      }
+      if (distanceMeters(stop, positions[i]) >= STOP_MOVE_RADIUS_M) {
+        far += 1;
+        if (far >= FAR_COUNT) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  return stops.filter((stop) => {
+    if (stop.index <= 0 || stop.index + stop.pointCount >= positions.length) {
+      return true;
+    }
+    const arrival = Date.parse(stop.arrivalTime);
+    const departure = Date.parse(stop.departureTime);
+    return (
+      movedEnough(arrival - STOP_MOVE_WINDOW_MS, arrival, stop) ||
+      movedEnough(departure, departure + STOP_MOVE_WINDOW_MS, stop)
+    );
+  });
+}
 export const NOISY_MIN_SPEED_MPS = 8;
 
 /** Velocidad Doppler reportada (m/s) máxima compatible con "teléfono quieto". */
@@ -769,12 +810,22 @@ export const MAX_GAP_MS = 5 * 60 * 1000;
 export function decimateForMatch(positions, { hideInaccurate, accuracyThreshold }) {
   const { points: working } = cleanRoutePositions(positions, { hideInaccurate, accuracyThreshold });
   const tolerance = SMOOTH_FLOOR_M / 111320;
-  return splitByGapAndTeleport(working, MAX_GAP_MS)
-    .map((chunk) =>
-      chunk.length > 2 ? smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)) : chunk,
-    )
-    .filter((chunk) => chunk.length >= 2)
-    .map((chunk) => chunk.map((p) => ({ latitude: p.latitude, longitude: p.longitude })));
+  return (
+    splitByGapAndTeleport(working, MAX_GAP_MS)
+      .map((chunk) =>
+        chunk.length > 2 ? smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)) : chunk,
+      )
+      .filter((chunk) => chunk.length >= 2)
+      // Se conserva speed (nudos, NaN si no hay) para colorear el fallback
+      // honesto por velocidad igual que el trazo principal.
+      .map((chunk) =>
+        chunk.map((p) => ({
+          latitude: p.latitude,
+          longitude: p.longitude,
+          speed: Number(p.speed),
+        })),
+      )
+  );
 }
 
 /**

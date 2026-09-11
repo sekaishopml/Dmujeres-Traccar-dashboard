@@ -14,6 +14,7 @@
     "@mui/material": "^9.1.1",
     "@reduxjs/toolkit": "^2.12.0",
     "@rolldown/binding-linux-x64-gnu": "^1.0.3",
+    "@sentry/react": "^10.74.0",
     "@tmcw/togeojson": "^7.1.2",
     "@turf/circle": "^7.3.5",
     "@yudiel/react-qr-scanner": "^2.6.0",

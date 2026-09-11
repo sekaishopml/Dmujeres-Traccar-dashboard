@@ -1,6 +1,6 @@
 {
-  "version": "1.0.79",
-  "versionCode": 79,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.79/DMujeres-Tracking-1.0.79.apk",
-  "notes": "Velocidad real con Doppler en 0 + Sentry cazando telemetría."
+  "version": "1.0.80",
+  "versionCode": 80,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.80/DMujeres-Tracking-1.0.80.apk",
+  "notes": "Sentry en panel y ANRs + paradas por movimiento y tiempo."
 }

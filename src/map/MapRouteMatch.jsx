@@ -1,6 +1,7 @@
 import { useId, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { map } from './core/MapView';
+import getSpeedColor from '../common/util/colors';
 import { useAttributePreference } from '../common/util/preferences';
 import { toMapCoordinates } from './core/mapUtil';
 
@@ -20,10 +21,6 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
     const attributes = deviceId ? state.devices.items[deviceId]?.attributes : null;
     return attributes?.['web.reportColor'] || null;
   });
-
-  // Color honesto para los tramos sin match (mismo sistema de la línea cruda:
-  // gris neutro que no compite con el azul carretera).
-  const HONEST_COLOR = '#64748b';
 
   useEffect(() => {
     map.addSource(id, {
@@ -64,6 +61,13 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
   const features = useMemo(() => {
     const list = [];
     const roadColor = reportColor || '#1a73e8';
+    // Escala de velocidad del fallback honesto (los tracks traen [lon,lat,kn]).
+    const speeds = (tracks || [])
+      .flatMap((track) => (Array.isArray(track) ? track : []))
+      .map((point) => Number(point[2]))
+      .filter(Number.isFinite);
+    const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
+    const minSpeed = speeds.length ? Math.min(...speeds) : 0;
     const pushLine = (a, b, color) => {
       list.push({
         type: 'Feature',
@@ -85,11 +89,12 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
         }
         return;
       }
-      // Sin match en este tramo: línea honesta con los puntos crudos del input.
+      // Sin match en este tramo: línea honesta con los puntos crudos del input,
+      // coloreada por velocidad igual que el trazo principal (nada gris).
       const raw = (tracks || [])[index];
       if (Array.isArray(raw)) {
         for (let i = 0; i < raw.length - 1; i += 1) {
-          pushLine(raw[i], raw[i + 1], HONEST_COLOR);
+          pushLine(raw[i], raw[i + 1], getSpeedColor(Number(raw[i + 1][2]), minSpeed, maxSpeed));
         }
       }
     });

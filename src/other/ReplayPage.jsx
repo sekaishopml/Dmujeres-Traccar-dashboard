@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import * as Sentry from '@sentry/react';
 import {
   IconButton,
   List,
@@ -259,7 +260,8 @@ const ReplayPage = () => {
     }
     let cancelled = false;
     const tracks = decimateForMatch(positions, { hideInaccurate: false, accuracyThreshold }).map(
-      (chunk) => chunk.map((p) => [p.longitude, p.latitude]),
+      (chunk) =>
+        chunk.map((p) => [p.longitude, p.latitude, Number.isFinite(p.speed) ? p.speed : null]),
     );
     fetchOrThrow('/api/positions/match', {
       method: 'POST',
@@ -278,10 +280,19 @@ const ReplayPage = () => {
           }
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
           setMatchSegments(null);
           setMatchTracks(null);
+          // El fallback honesto ya cubre al usuario; el error va a Sentry.
+          try {
+            Sentry.captureException(error, {
+              tags: { area: 'replay-match' },
+              extra: { deviceId: selectedDeviceId, tracks: tracks.length },
+            });
+          } catch {
+            // telemetría nunca rompe el replay
+          }
         }
       });
     return () => {
