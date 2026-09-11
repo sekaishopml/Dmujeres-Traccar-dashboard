@@ -17,7 +17,7 @@ import {
   toleranceForZoom,
 } from './util/pathDecimation';
 
-const MapRoutePath = ({ positions, onStats }) => {
+const MapRoutePath = ({ positions, onStats, hideInaccurate: hideInaccurateProp }) => {
   const id = useId();
 
   const [zoom, setZoom] = useState(() => map.getZoom());
@@ -46,7 +46,9 @@ const MapRoutePath = ({ positions, onStats }) => {
   const mapLineOpacity = useAttributePreference('mapLineOpacity', 1);
   const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
   const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
-  const hideInaccurate = hideInaccuratePref;
+  // Prop explícita (repetición de ruta con "ocultos siempre") gana a la
+  // preferencia; los demás usos siguen la preferencia del usuario.
+  const hideInaccurate = hideInaccurateProp !== undefined ? hideInaccurateProp : hideInaccuratePref;
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
     : 250;

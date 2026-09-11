@@ -889,10 +889,16 @@ export const ISOLATED_JUMP_SPEED_MPS = 8;
 /**
  * Pipeline ÚNICO de limpieza del trazo (lo usan igual la línea y las flechas
  * para que coincidan): duplicados exactos → red sin GNSS → spikes →
- * inexactos → rachas de ruido → paradas largas. No muta el input. Con
- * hideInaccurate en false devuelve los puntos intactos ("Ver todo" = crudo
- * real). Devuelve { points, stats, cuts } donde cuts son las referencias de
- * los puntos ANTES de los cuales hay que cortar (cuerdas sobre ocultos).
+ * inexactos → rachas de ruido → paradas largas. No muta el input.
+ *
+ * SIEMPRE se eliminan fantasmas (spikes/ping-pong/sándwich) y se computan los
+ * cortes de saltos imposibles, incluso con hideInaccurate=false (modo
+ * "mostrar todos los puntos" de la repetición de ruta): así se ven TODOS los
+ * fixes, pero nunca se dibuja una excursión imposible ni una recta sobre un
+ * salto de señal. Con hideInaccurate=true además se ocultan inválidos,
+ * provider de red e inexactos, y se colapsan paradas largas.
+ * Devuelve { points, stats, cuts } donde cuts son las referencias de los
+ * puntos ANTES de los cuales hay que cortar (cuerdas sobre ocultos y saltos).
  */
 /** Umbral mínimo de accuracy (m) admitido: por debajo esconde ruta real. */
 export const MIN_ACCURACY_THRESHOLD_M = 30;
@@ -915,10 +921,18 @@ export function cleanRoutePositions(positions, { hideInaccurate, accuracyThresho
   let working = positions;
   let dupes = 0;
   let provider = 0;
-  let spikes = 0;
+  let spikes;
   let inaccurate = 0;
   let noisy = 0;
   let collapsed = 0;
+  // Limpieza de FANTASMAS SIEMPRE (también en modo "mostrar todos los puntos"):
+  // picos/ping-pong/sándwich son excursiones geométricas imposibles (ida y vuelta
+  // en segundos, sin respaldo Doppler) y nunca son ruta real; se evalúan sobre la
+  // geometría CRUDA (antes de quitar red/inexactos): si primero se eliminan los
+  // vecinos, los tripletos se rompen y los fantasmas sobreviven al filtro.
+  const deSpiked = filterSpikes(working);
+  spikes = working.length - deSpiked.length;
+  working = deSpiked;
   if (hideInaccurate) {
     // Filas duplicadas exactas (mismo fixTime y coords, distinto id): la
     // ingesta doble las guarda dos veces; para el trazo sobra una.
@@ -933,12 +947,6 @@ export function cleanRoutePositions(positions, { hideInaccurate, accuracyThresho
       return true;
     });
     dupes = beforeDupes - working.length;
-    // Picos/ping-pong/sándwich se evalúan sobre la geometría CRUDA (antes de
-    // quitar red/inexactos): si primero se eliminan los vecinos, los tripletos
-    // se rompen y los fantasmas sobreviven al filtro.
-    const deSpiked = filterSpikes(working);
-    spikes = working.length - deSpiked.length;
-    working = deSpiked;
     // Puros de red sin GNSS (attributes.provider === 'network' o 'unknown'):
     // re-entregas cacheadas que agrandan el cluster y nunca trazan carretera.
     const beforeProvider = working.length;
@@ -960,14 +968,15 @@ export function cleanRoutePositions(positions, { hideInaccurate, accuracyThresho
     working = still.points;
     collapsed = still.collapsed;
   }
-  // Cortes: segmentos que saltan sobre puntos ocultos más de BRIDGED_CUT_DIST_M
-  // no se dibujan (evita rectas cruzando cuadras). Además, saltos aislados
+  // Cortes SIEMPRE: segmentos que saltan sobre puntos ocultos más de
+  // BRIDGED_CUT_DIST_M no se dibujan (evita rectas cruzando cuadras; con
+  // show-all no hay ocultos y esta rama no dispara). Además, saltos aislados
   // largos entre vecinos lentos sin respaldo Doppler (teleport que aparece y
   // se queda quieto: imposible en viaje real, donde lo rápido es sostenido).
   // Se resuelve por tramo original, así sobrevive a simplify (referencias).
   const cuts = new Set();
   let bridges = 0;
-  if (hideInaccurate) {
+  {
     const legSpeed = (a, b) => {
       const dt = (timeOf(b) - timeOf(a)) / 1000;
       if (!Number.isFinite(dt) || dt <= 0) {

@@ -371,8 +371,13 @@ const ReplayPage = () => {
       <MapView>
         <MapOverlay />
         <MapGeofence />
-        <MapRoutePath positions={positions} onStats={handleRouteStats} />
-        <MapRoutePoints positions={positions} onClick={onPointClick} showSpeedControl />
+        <MapRoutePath positions={positions} onStats={handleRouteStats} hideInaccurate={false} />
+        <MapRoutePoints
+          positions={positions}
+          onClick={onPointClick}
+          showSpeedControl
+          hideInaccurate={false}
+        />
         {index < positions.length && (
           <MapReplayMarker
             position={positions[index]}

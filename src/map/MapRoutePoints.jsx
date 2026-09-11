@@ -46,7 +46,12 @@ const haversineMeters = (a, b) => {
   return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(h)));
 };
 
-const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
+const MapRoutePoints = ({
+  positions,
+  onClick,
+  showSpeedControl,
+  hideInaccurate: hideInaccurateProp,
+}) => {
   const id = useId();
 
   const [zoom, setZoom] = useState(() => map.getZoom());
@@ -131,7 +136,8 @@ const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
     // suavizada que dibuja la línea (diferencia central; en bordes de tramo,
     // unilateral). Siempre vista limpia, misma suavización que MapRoutePath.
     // Se conserva el índice original del click vía position.id.
-    const hideInaccurate = hideInaccuratePref;
+    const hideInaccurate =
+      hideInaccurateProp !== undefined ? hideInaccurateProp : hideInaccuratePref;
     const { points: working } = cleanRoutePositions(positions, {
       hideInaccurate,
       accuracyThreshold,
@@ -215,7 +221,7 @@ const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
         },
       };
     });
-  }, [positions, zoom, hideInaccuratePref, accuracyThreshold]);
+  }, [positions, zoom, hideInaccuratePref, hideInaccurateProp, accuracyThreshold]);
 
   useEffect(() => {
     map.getSource(id)?.setData({
