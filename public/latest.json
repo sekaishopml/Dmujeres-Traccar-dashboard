@@ -1,6 +1,6 @@
 {
-  "version": "1.0.77",
-  "versionCode": 78,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.77/DMujeres-Tracking-1.0.77.apk",
-  "notes": "Diseño de la pantalla principal restaurado al original (se retira la fila de diagnóstico en vivo)."
+  "version": "1.0.78",
+  "versionCode": 79,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.78/DMujeres-Tracking-1.0.78.apk",
+  "notes": "Flechas 100% reales + intervalo adaptativo 5 s en marcha."
 }

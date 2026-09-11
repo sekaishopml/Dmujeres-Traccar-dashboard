@@ -24,9 +24,9 @@ const MIN_ARROW_SEPARATION_M = 15;
 const MAX_ARROWS = 800;
 
 /**
- * Paso (m) entre flechas según zoom: la flecha cae SOBRE el tramo por
- * arco-longitud aunque sus vértices estén a cientos de metros (rectas
- * largas), así ningún punto del trazo se queda sin flecha.
+ * Paso MÍNIMO (m) entre flechas según zoom. La flecha cae siempre sobre un
+ * fix REAL (nunca interpolada): en rectas de vértices escasos el paso real
+ * lo marca la cadencia del GPS, no este número.
  */
 const STEP_FOR_ZOOM = (zoom) => {
   if (zoom < 9) return 800;
@@ -52,19 +52,18 @@ const haversineMeters = (a, b) => {
 };
 
 // Flechas de rumbo sobre la ruta, como el Traccar original (en TODOS los
-// zooms), con tres optimizaciones:
-//  1) se colocan por DISTANCIA caminando cada tramo (nunca faltan en rectas
-//     largas de vértices escasos, nunca sobran en junctions densas);
-//  2) el rumbo es el de la cuerda donde cae la flecha (exacto en la línea
-//     visible), nunca el course rancio del equipo;
-//  3) si hay trazo pegado a carretera (matchSegments), las flechas pisan sus
-//     vértices; el color y el click siguen siendo del fix real más cercano.
+// zooms). REGLA DURA: cada flecha corresponde a un fix REAL recolectado por
+// la app (nunca interpolada): se camina por distancia y al cruzar el paso se
+// coloca en el siguiente vértice real. En rectas largas de vértices escasos
+// la densidad la marca la cadencia del GPS (5 s en marcha); el rumbo sale de
+// la línea visible y el color/click del fix real.
 const MapRoutePoints = ({
   positions,
   onClick,
   showSpeedControl,
   hideInaccurate: hideInaccurateProp,
   matchSegments,
+  matchTracks,
 }) => {
   const id = useId();
 
@@ -141,92 +140,15 @@ const MapRoutePoints = ({
   const features = useMemo(() => {
     const hideInaccurate =
       hideInaccurateProp !== undefined ? hideInaccurateProp : hideInaccuratePref;
-    // Trozos como listas de {latitude, longitude}: con match, los vértices de
-    // la línea visible; si no, el trazo limpio+decimado (misma limpieza que la
-    // línea). Ya vienen cortados por huecos: nunca se camina sobre un corte.
-    let chunks;
-    if (
-      Array.isArray(matchSegments) &&
-      matchSegments.some((s) => Array.isArray(s) && s.length >= 2)
-    ) {
-      chunks = [];
-      matchSegments.forEach((segment) => {
-        if (Array.isArray(segment) && segment.length >= 2) {
-          chunks.push(segment.map(([longitude, latitude]) => ({ latitude, longitude })));
-        }
-      });
-    } else {
-      const { points: working } = cleanRoutePositions(positions, {
-        hideInaccurate,
-        accuracyThreshold,
-      });
-      let rawChunks = splitByGapAndTeleport(working, MAX_GAP_MS);
-      if (working.length > DECIMATION_THRESHOLD) {
-        const tolerance = Math.max(toleranceForZoom(zoom), SMOOTH_FLOOR_M / 111320);
-        rawChunks = rawChunks.map((chunk) =>
-          smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)),
-        );
-      }
-      chunks = rawChunks.map((chunk) =>
-        chunk.map((p) => ({ latitude: p.latitude, longitude: p.longitude })),
-      );
-    }
-    if (!chunks.length) {
-      return [];
-    }
-    // Longitud total para el tope anti-lag.
-    let totalLen = 0;
-    chunks.forEach((chunk) => {
-      for (let i = 0; i < chunk.length - 1; i += 1) {
-        totalLen += haversineMeters(chunk[i], chunk[i + 1]);
+    // Índice original por id para el click (el slider usa el orden del array).
+    const byId = new Map();
+    positions.forEach((position, index) => {
+      if (position?.id !== undefined && !byId.has(position.id)) {
+        byId.set(position.id, index);
       }
     });
-    const step = Math.max(STEP_FOR_ZOOM(zoom), totalLen > 0 ? totalLen / MAX_ARROWS : 0);
-    // Camina cada trozo: flecha al inicio + una cada `step` metros con el
-    // rumbo de su cuerda. Así las rectas largas tienen flechas y las zonas
-    // densas no se apelotonan (el acumulado reparte el sobrante).
-    const placed = [];
-    chunks.forEach((chunk) => {
-      if (!chunk.length) {
-        return;
-      }
-      placed.push({
-        ...chunk[0],
-        rotation: chunk.length > 1 ? bearingDegrees(chunk[0], chunk[1]) : 0,
-      });
-      let acc = 0;
-      for (let i = 0; i < chunk.length - 1; i += 1) {
-        const a = chunk[i];
-        const b = chunk[i + 1];
-        const legLen = haversineMeters(a, b);
-        if (!(legLen > 0)) {
-          continue;
-        }
-        const legBearing = bearingDegrees(a, b);
-        let d = step - acc;
-        while (d <= legLen) {
-          const f = d / legLen;
-          placed.push({
-            latitude: a.latitude + (b.latitude - a.latitude) * f,
-            longitude: a.longitude + (b.longitude - a.longitude) * f,
-            rotation: legBearing,
-          });
-          d += step;
-        }
-        acc = (acc + legLen) % step;
-      }
-    });
-    // Guardia anti-apilado (paradas, junctions densas): mínimo 15 m.
-    const kept = [];
-    placed.forEach((arrow, arrowIndex) => {
-      const previous = kept[kept.length - 1];
-      const isLast = arrowIndex === placed.length - 1;
-      if (!previous || haversineMeters(previous, arrow) >= MIN_ARROW_SEPARATION_M || isLast) {
-        kept.push(arrow);
-      }
-    });
-    // Fix real más cercano a cada flecha (color por velocidad y click):
-    // la flecha pisa la línea, el dato sigue siendo honesto.
+    // Fix real más cercano a una coordenada (modo match: el track de entrada
+    // no trae ids; se resuelve contra positions).
     const nearestRawIndex = ({ latitude, longitude }) => {
       let best = -1;
       let bestDist = Infinity;
@@ -246,29 +168,174 @@ const MapRoutePoints = ({
       }
       return best;
     };
-    const resolved = kept.map((arrow) => ({ arrow, rawIndex: nearestRawIndex(arrow) }));
-    const speeds = resolved
+    // Carriles de candidatos REALES: cada candidato = { display:{latitude,
+    // longitude}, bearing, rawIndex }. En honesto el display es el propio fix;
+    // en match, el fix ajustado (snap) a la línea visible.
+    let lanes = [];
+    const useMatched =
+      Array.isArray(matchSegments) &&
+      matchSegments.some((s) => Array.isArray(s) && s.length >= 2) &&
+      Array.isArray(matchTracks);
+    if (useMatched) {
+      matchTracks.forEach((track, trackIndex) => {
+        const segment = matchSegments[trackIndex];
+        if (!Array.isArray(track) || !track.length) {
+          return;
+        }
+        if (!Array.isArray(segment) || segment.length < 2) {
+          // Sin match: fixes crudos del track, rumbo por diferencia central.
+          const lane = track.map(([longitude, latitude], i) => {
+            const prev = track[Math.max(0, i - 1)];
+            const next = track[Math.min(track.length - 1, i + 1)];
+            return {
+              display: { latitude, longitude },
+              bearing: bearingDegrees(
+                { latitude: prev[1], longitude: prev[0] },
+                { latitude: next[1], longitude: next[0] },
+              ),
+              rawIndex: nearestRawIndex({ latitude, longitude }),
+            };
+          });
+          lanes.push(lane);
+          return;
+        }
+        // Con match: cada fix del track ajustado a su vértice casado más
+        // cercano (posición visible); rumbo de la cuerda casada en ese punto.
+        const chords = [];
+        for (let i = 0; i < segment.length - 1; i += 1) {
+          chords.push({
+            bearing: bearingDegrees(
+              { latitude: segment[i][1], longitude: segment[i][0] },
+              { latitude: segment[i + 1][1], longitude: segment[i + 1][0] },
+            ),
+          });
+        }
+        const nearestMatched = ({ latitude, longitude }) => {
+          let best = 0;
+          let bestDist = Infinity;
+          const cosLat = Math.cos((latitude * Math.PI) / 180);
+          for (let i = 0; i < segment.length; i += 1) {
+            const dLat = (segment[i][1] - latitude) * 111320;
+            const dLon = (segment[i][0] - longitude) * 111320 * cosLat;
+            const dist = dLat * dLat + dLon * dLon;
+            if (dist < bestDist) {
+              bestDist = dist;
+              best = i;
+            }
+          }
+          return best;
+        };
+        lanes.push(
+          track.map(([longitude, latitude]) => {
+            const at = nearestMatched({ latitude, longitude });
+            const chord = chords[Math.min(at, chords.length - 1)];
+            return {
+              display: { latitude: segment[at][1], longitude: segment[at][0] },
+              bearing: chord ? chord.bearing : 0,
+              rawIndex: nearestRawIndex({ latitude, longitude }),
+            };
+          }),
+        );
+      });
+    } else {
+      const { points: working } = cleanRoutePositions(positions, {
+        hideInaccurate,
+        accuracyThreshold,
+      });
+      let chunks = splitByGapAndTeleport(working, MAX_GAP_MS);
+      if (working.length > DECIMATION_THRESHOLD) {
+        const tolerance = Math.max(toleranceForZoom(zoom), SMOOTH_FLOOR_M / 111320);
+        chunks = chunks.map((chunk) => smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)));
+      }
+      lanes = chunks.map((chunk) =>
+        chunk.map((position, i) => {
+          const prev = chunk[Math.max(0, i - 1)];
+          const next = chunk[Math.min(chunk.length - 1, i + 1)];
+          return {
+            display: { latitude: position.latitude, longitude: position.longitude },
+            bearing: bearingDegrees(prev, next),
+            rawIndex:
+              position?.id !== undefined && byId.has(position.id)
+                ? byId.get(position.id)
+                : nearestRawIndex(position),
+          };
+        }),
+      );
+    }
+    lanes = lanes.filter((lane) => lane.length > 0);
+    if (!lanes.length) {
+      return [];
+    }
+    // Longitud visible total para el tope anti-lag.
+    let totalLen = 0;
+    lanes.forEach((lane) => {
+      for (let i = 0; i < lane.length - 1; i += 1) {
+        totalLen += haversineMeters(lane[i].display, lane[i + 1].display);
+      }
+    });
+    const step = Math.max(STEP_FOR_ZOOM(zoom), totalLen > 0 ? totalLen / MAX_ARROWS : 0);
+    // Camina por distancia y coloca en el siguiente CANDIDATO REAL al cruzar
+    // el paso (nunca entre vértices): cada flecha es un fix recolectado.
+    // El primer candidato de cada tramo siempre lleva flecha (marca inicios).
+    const placed = [];
+    lanes.forEach((lane) => {
+      placed.push(lane[0]);
+      let acc = 0;
+      for (let i = 0; i < lane.length - 1; i += 1) {
+        const legLen = haversineMeters(lane[i].display, lane[i + 1].display);
+        if (!(legLen > 0)) {
+          continue;
+        }
+        acc += legLen;
+        if (acc >= step) {
+          placed.push(lane[i + 1]);
+          acc = 0;
+        }
+      }
+    });
+    // Guardia anti-apilado (paradas, junctions densas): mínimo 15 m.
+    const kept = [];
+    placed.forEach((candidate, candidateIndex) => {
+      const previous = kept[kept.length - 1];
+      const isLast = candidateIndex === placed.length - 1;
+      if (
+        !previous ||
+        haversineMeters(previous.display, candidate.display) >= MIN_ARROW_SEPARATION_M ||
+        isLast
+      ) {
+        kept.push(candidate);
+      }
+    });
+    const speeds = kept
       .map(({ rawIndex }) => (rawIndex >= 0 ? Number(positions[rawIndex]?.speed) : NaN))
       .filter(Number.isFinite);
     const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
     const minSpeed = speeds.length ? Math.min(...speeds) : 0;
-    return resolved.map(({ arrow, rawIndex }) => {
+    return kept.map(({ display, bearing, rawIndex }) => {
       const raw = rawIndex >= 0 ? positions[rawIndex] : null;
       return {
         type: 'Feature',
         geometry: {
           type: 'Point',
-          coordinates: toMapCoordinates(arrow.longitude, arrow.latitude),
+          coordinates: toMapCoordinates(display.longitude, display.latitude),
         },
         properties: {
           index: rawIndex >= 0 ? rawIndex : 0,
           id: raw?.id,
-          rotation: arrow.rotation,
+          rotation: bearing,
           color: getSpeedColor(Number(raw?.speed), minSpeed, maxSpeed),
         },
       };
     });
-  }, [positions, zoom, hideInaccuratePref, hideInaccurateProp, accuracyThreshold, matchSegments]);
+  }, [
+    positions,
+    zoom,
+    hideInaccuratePref,
+    hideInaccurateProp,
+    accuracyThreshold,
+    matchSegments,
+    matchTracks,
+  ]);
 
   useEffect(() => {
     map.getSource(id)?.setData({

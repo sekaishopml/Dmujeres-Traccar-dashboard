@@ -506,6 +506,7 @@ const ReplayPage = () => {
           showSpeedControl
           hideInaccurate={false}
           matchSegments={matchSegments}
+          matchTracks={matchTracks}
         />
         {index < positions.length && (
           <MapReplayMarker
