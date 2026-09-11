@@ -146,19 +146,6 @@ const ReplayPage = () => {
   const [follow, setFollow] = useState(mapFollowPref);
   const [stopsOpen, setStopsOpen] = useState(false);
   const stops = useMemo(() => detectStops(positions), [positions]);
-  const [routeStats, setRouteStats] = useState({
-    total: 0,
-    shown: 0,
-    hidden: 0,
-    provider: 0,
-    inaccurate: 0,
-    collapsed: 0,
-    noisy: 0,
-    spikes: 0,
-  });
-
-  const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
-  const routeFiltering = hideInaccuratePref;
   const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
@@ -209,17 +196,6 @@ const ReplayPage = () => {
   // Espejo para el loop rAF (no reinicia la animación al llegar el match).
   const snapRef = useRef(snapToMatch);
   snapRef.current = snapToMatch;
-  const hiddenCount =
-    routeStats.hidden +
-    routeStats.collapsed +
-    (routeStats.noisy || 0) +
-    (routeStats.spikes || 0) +
-    (routeStats.dupes || 0);
-
-  const handleRouteStats = useCallback((stats) => {
-    setRouteStats(stats);
-  }, []);
-
   const loaded = Boolean(from && to && !loading && positions.length);
 
   useEffect(() => {
@@ -498,7 +474,7 @@ const ReplayPage = () => {
             deviceId={selectedDeviceId}
           />
         ) : (
-          <MapRoutePath positions={positions} onStats={handleRouteStats} hideInaccurate={false} />
+          <MapRoutePath positions={positions} hideInaccurate={false} />
         )}
         <MapRoutePoints
           positions={positions}
@@ -624,28 +600,6 @@ const ReplayPage = () => {
                 <Typography variant="caption" sx={{ color: '#ffffff' }}>
                   {formatTime(positions[index].fixTime, 'seconds')}
                 </Typography>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: 4,
-                }}
-              >
-                {routeFiltering ? (
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    title={`${routeStats.inaccurate || 0} inexactos (valid/accuracy) · ${routeStats.provider || 0} red sin GNSS · ${routeStats.dupes || 0} duplicados · ${routeStats.spikes || 0} picos · ${routeStats.noisy || 0} ruido · ${routeStats.collapsed || 0} paradas largas · ${routeStats.bridges || 0} cortes de cuerda`}
-                  >
-                    {`${routeStats.shown} / ${routeStats.total} · ${hiddenCount} ${t('reportHiddenPoints')}${
-                      matchSegments ? ` · ${t('reportMatchRoad')}` : ''
-                    }`}
-                  </Typography>
-                ) : (
-                  <span />
-                )}
               </div>
               <div style={{ marginTop: 4 }}>
                 <ListItemButton dense onClick={() => setStopsOpen((open) => !open)} sx={{ px: 0 }}>
