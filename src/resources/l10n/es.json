@@ -697,5 +697,6 @@
   "maintenanceStart": "Iniciar",
   "maintenancePeriod": "Período",
   "sharedPending": "pendientes",
-  "sharedBattery": "batería"
+  "sharedBattery": "batería",
+  "reportMatchRoad": "Trazo pegado a carretera"
 }

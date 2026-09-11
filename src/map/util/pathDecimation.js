@@ -759,6 +759,25 @@ export const DECIMATION_THRESHOLD = 200;
 export const MAX_GAP_MS = 5 * 60 * 1000;
 
 /**
+ * Input para map-matching (/api/positions/match): el MISMO trazo limpio que
+ * dibuja la línea (fantasmas fuera, paradas colapsadas opcionales) pero con
+ * tolerancia FIJA (sin zoom: estable entre renders) y ya cortado por huecos/
+ * teleports. Devuelve tramos (arrays de {latitude, longitude} en orden) de 2+
+ * puntos: cada tramo se casa independiente y la unión conserva los cortes.
+ * No muta el input.
+ */
+export function decimateForMatch(positions, { hideInaccurate, accuracyThreshold }) {
+  const { points: working } = cleanRoutePositions(positions, { hideInaccurate, accuracyThreshold });
+  const tolerance = SMOOTH_FLOOR_M / 111320;
+  return splitByGapAndTeleport(working, MAX_GAP_MS)
+    .map((chunk) =>
+      chunk.length > 2 ? smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)) : chunk,
+    )
+    .filter((chunk) => chunk.length >= 2)
+    .map((chunk) => chunk.map((p) => ({ latitude: p.latitude, longitude: p.longitude })));
+}
+
+/**
  * TELEPORTS (saltos imposibles entre dos fixes consecutivos): nunca se unen
  * con una recta que cruce cuadras; la línea se CORTA ahí igual que con
  * MAX_GAP_MS por tiempo. Dos reglas independientes, basta que cumpla una:

@@ -698,5 +698,6 @@
   "maintenanceStart": "Start",
   "maintenancePeriod": "Period",
   "sharedPending": "pending",
-  "sharedBattery": "battery"
+  "sharedBattery": "battery",
+  "reportMatchRoad": "Road-snapped trace"
 }

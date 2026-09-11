@@ -28,8 +28,14 @@ import MapView, { map } from '../map/core/MapView';
 import { toMapCoordinates } from '../map/core/mapUtil';
 import MapRoutePath from '../map/MapRoutePath';
 import MapRoutePoints from '../map/MapRoutePoints';
+import MapRouteMatch from '../map/MapRouteMatch';
 import MapReplayMarker from '../map/MapReplayMarker';
-import { bearingDegrees, detectStops, shouldCut } from '../map/util/pathDecimation';
+import {
+  bearingDegrees,
+  decimateForMatch,
+  detectStops,
+  shouldCut,
+} from '../map/util/pathDecimation';
 import { formatTime } from '../common/util/formatter';
 import ReportFilter from '../reports/components/ReportFilter';
 import { useTranslation } from '../common/components/LocalizationProvider';
@@ -153,6 +159,13 @@ const ReplayPage = () => {
 
   const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
   const routeFiltering = hideInaccuratePref;
+  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
+  const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
+    ? Number(accuracyThresholdPref)
+    : 250;
+  // Trazo pegado a carretera: segmentos matcheados por el servidor.
+  // Si no hay match (matcher caído o sin vías), la línea honesta queda visible.
+  const [matchSegments, setMatchSegments] = useState(null);
   const hiddenCount =
     routeStats.hidden +
     routeStats.collapsed +
@@ -165,6 +178,40 @@ const ReplayPage = () => {
   }, []);
 
   const loaded = Boolean(from && to && !loading && positions.length);
+
+  useEffect(() => {
+    if (!loaded || positions.length < 2) {
+      setMatchSegments(null);
+      return;
+    }
+    let cancelled = false;
+    const tracks = decimateForMatch(positions, { hideInaccurate: false, accuracyThreshold }).map(
+      (chunk) => chunk.map((p) => [p.longitude, p.latitude]),
+    );
+    fetchOrThrow('/api/positions/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: selectedDeviceId, tracks, accuracy: 25 }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) {
+          setMatchSegments(
+            Array.isArray(data.segments) && data.segments.some(Array.isArray)
+              ? data.segments
+              : null,
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMatchSegments(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loaded, positions, selectedDeviceId, accuracyThreshold]);
 
   // Espejos para el loop rAF: el efecto solo depende de [playing, positions]
   // y lee el resto por refs, así ni el slider ni la velocidad ni el follow
@@ -371,7 +418,11 @@ const ReplayPage = () => {
       <MapView>
         <MapOverlay />
         <MapGeofence />
-        <MapRoutePath positions={positions} onStats={handleRouteStats} hideInaccurate={false} />
+        {matchSegments ? (
+          <MapRouteMatch segments={matchSegments} deviceId={selectedDeviceId} />
+        ) : (
+          <MapRoutePath positions={positions} onStats={handleRouteStats} hideInaccurate={false} />
+        )}
         <MapRoutePoints
           positions={positions}
           onClick={onPointClick}
@@ -509,7 +560,9 @@ const ReplayPage = () => {
                     color="textSecondary"
                     title={`${routeStats.inaccurate || 0} inexactos (valid/accuracy) · ${routeStats.provider || 0} red sin GNSS · ${routeStats.dupes || 0} duplicados · ${routeStats.spikes || 0} picos · ${routeStats.noisy || 0} ruido · ${routeStats.collapsed || 0} paradas largas · ${routeStats.bridges || 0} cortes de cuerda`}
                   >
-                    {`${routeStats.shown} / ${routeStats.total} · ${hiddenCount} ${t('reportHiddenPoints')}`}
+                    {`${routeStats.shown} / ${routeStats.total} · ${hiddenCount} ${t('reportHiddenPoints')}${
+                      matchSegments ? ` · ${t('reportMatchRoad')}` : ''
+                    }`}
                   </Typography>
                 ) : (
                   <span />
