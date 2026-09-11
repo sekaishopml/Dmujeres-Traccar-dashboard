@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  Collapse,
   IconButton,
   List,
   ListItemButton,
@@ -9,6 +8,12 @@ import {
   Paper,
   Select,
   Slider,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+  Tabs,
   Toolbar,
   Typography,
 } from '@mui/material';
@@ -19,10 +24,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import FastForwardIcon from '@mui/icons-material/FastForward';
 import FastRewindIcon from '@mui/icons-material/FastRewind';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import MapView, { map } from '../map/core/MapView';
 import { toMapCoordinates } from '../map/core/mapUtil';
@@ -36,15 +39,15 @@ import {
   detectStops,
   shouldCut,
 } from '../map/util/pathDecimation';
-import { formatTime } from '../common/util/formatter';
+import { formatSpeed, formatTime } from '../common/util/formatter';
 import ReportFilter from '../reports/components/ReportFilter';
 import { useTranslation } from '../common/components/LocalizationProvider';
 import { useCatchCallback } from '../reactHelper';
 import MapCamera from '../map/MapCamera';
 import MapGeofence from '../map/MapGeofence';
-import StatusCard from '../common/components/StatusCard';
 import MapScale from '../map/MapScale';
 import BackIcon from '../common/components/BackIcon';
+import PositionValue from '../common/components/PositionValue';
 import fetchOrThrow from '../common/util/fetchOrThrow';
 import MapOverlay from '../map/overlay/MapOverlay';
 import { useAttributePreference } from '../common/util/preferences';
@@ -78,10 +81,17 @@ const useStyles = makeStyles()((theme) => ({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: theme.spacing(0.5),
-    background: '#111111',
-    color: '#ffffff',
+    background: theme.palette.background.paper,
+    color: theme.palette.text.primary,
+    border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.spacing(1),
     padding: theme.spacing(0.25, 1),
+  },
+  followFab: {
+    position: 'fixed',
+    left: theme.spacing(1.5),
+    bottom: theme.spacing(8),
+    zIndex: 2,
   },
   formControlLabel: {
     height: '100%',
@@ -135,7 +145,6 @@ const ReplayPage = () => {
   const [positions, setPositions] = useState([]);
   const [index, setIndex] = useState(0);
   const [selectedDeviceId, setSelectedDeviceId] = useState(defaultDeviceId);
-  const [showCard, setShowCard] = useState(false);
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const [playing, setPlaying] = useState(false);
@@ -144,7 +153,8 @@ const ReplayPage = () => {
   const [speed, setSpeed] = useState(1);
   const mapFollowPref = useAttributePreference('mapFollow', true);
   const [follow, setFollow] = useState(mapFollowPref);
-  const [stopsOpen, setStopsOpen] = useState(false);
+  // Pestaña del panel lateral: 0 = Paradas, 1 = Detalles del punto actual.
+  const [panelTab, setPanelTab] = useState(0);
   const stops = useMemo(() => detectStops(positions), [positions]);
   const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
@@ -412,17 +422,18 @@ const ReplayPage = () => {
 
   const onPointClick = useCallback(
     (_, index) => {
+      setPlaying(false);
       setIndex(index);
+      setPanelTab(1);
     },
     [setIndex],
   );
 
-  const onMarkerClick = useCallback(
-    (positionId) => {
-      setShowCard(!!positionId);
-    },
-    [setShowCard],
-  );
+  const onMarkerClick = useCallback((positionId) => {
+    if (positionId) {
+      setPanelTab(1);
+    }
+  }, []);
 
   const onShow = useCatchCallback(
     async ({ deviceIds, from, to }) => {
@@ -479,7 +490,6 @@ const ReplayPage = () => {
         <MapRoutePoints
           positions={positions}
           onClick={onPointClick}
-          showSpeedControl
           hideInaccurate={false}
           matchSegments={matchSegments}
           matchTracks={matchTracks}
@@ -541,7 +551,7 @@ const ReplayPage = () => {
                 }}
               />
               <div className={classes.controls}>
-                <Typography variant="caption" sx={{ color: '#ffffff' }}>
+                <Typography variant="caption" sx={{ color: 'text.primary' }}>
                   {`${index + 1}/${positions.length}`}
                 </Typography>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -549,7 +559,6 @@ const ReplayPage = () => {
                     size="small"
                     onClick={() => setIndex((index) => index - 1)}
                     disabled={playing || index <= 0}
-                    sx={{ color: '#ffffff' }}
                   >
                     <FastRewindIcon />
                   </IconButton>
@@ -557,7 +566,6 @@ const ReplayPage = () => {
                     size="small"
                     onClick={handleTogglePlay}
                     disabled={index >= positions.length - 1}
-                    sx={{ color: '#ffffff' }}
                   >
                     {playing ? <PauseIcon /> : <PlayArrowIcon />}
                   </IconButton>
@@ -565,7 +573,6 @@ const ReplayPage = () => {
                     size="small"
                     onClick={() => setIndex((index) => index + 1)}
                     disabled={playing || index >= positions.length - 1}
-                    sx={{ color: '#ffffff' }}
                   >
                     <FastForwardIcon />
                   </IconButton>
@@ -577,10 +584,10 @@ const ReplayPage = () => {
                     sx={{
                       minWidth: 30,
                       fontSize: '0.8125rem',
-                      color: '#ffffff',
+                      color: 'text.primary',
                       ml: 0.25,
                       '& .MuiSelect-select': { padding: '2px 4px 2px 0' },
-                      '& .MuiSelect-icon': { fontSize: '1rem', right: 0, color: '#ffffff' },
+                      '& .MuiSelect-icon': { fontSize: '1rem', right: 0 },
                       '&:before, &:after': { display: 'none' },
                     }}
                   >
@@ -588,33 +595,26 @@ const ReplayPage = () => {
                       <MenuItem key={value} value={value}>{`x${value}`}</MenuItem>
                     ))}
                   </Select>
-                  <IconButton
-                    size="small"
-                    title={t('deviceFollow')}
-                    onClick={() => setFollow((value) => !value)}
-                    sx={{ color: '#ffffff', opacity: follow ? 1 : 0.4 }}
-                  >
-                    <MyLocationIcon fontSize="small" />
-                  </IconButton>
                 </div>
-                <Typography variant="caption" sx={{ color: '#ffffff' }}>
+                <Typography variant="caption" sx={{ color: 'text.primary' }}>
                   {formatTime(positions[index].fixTime, 'seconds')}
                 </Typography>
               </div>
               <div style={{ marginTop: 4 }}>
-                <ListItemButton dense onClick={() => setStopsOpen((open) => !open)} sx={{ px: 0 }}>
-                  <ListItemText
-                    primary={`${t('reportReplayStops')} (${stops.length})`}
-                    primaryTypographyProps={{ variant: 'subtitle2' }}
+                <Tabs
+                  value={panelTab}
+                  onChange={(_, value) => setPanelTab(value)}
+                  variant="fullWidth"
+                  sx={{ minHeight: 36 }}
+                >
+                  <Tab
+                    label={`${t('reportReplayStops')} (${stops.length})`}
+                    sx={{ minHeight: 36, fontSize: '0.8rem' }}
                   />
-                  {stopsOpen ? (
-                    <ExpandLessIcon fontSize="small" />
-                  ) : (
-                    <ExpandMoreIcon fontSize="small" />
-                  )}
-                </ListItemButton>
-                <Collapse in={stopsOpen} timeout="auto">
-                  {stops.length ? (
+                  <Tab label={t('sharedShowDetails')} sx={{ minHeight: 36, fontSize: '0.8rem' }} />
+                </Tabs>
+                {panelTab === 0 ? (
+                  stops.length ? (
                     <List dense disablePadding sx={{ maxHeight: 180, overflow: 'auto' }}>
                       {stops.map((stop) => (
                         <ListItemButton
@@ -624,6 +624,7 @@ const ReplayPage = () => {
                           onClick={() => {
                             setPlaying(false);
                             setIndex(stop.index);
+                            setPanelTab(1);
                           }}
                         >
                           <ListItemText
@@ -637,8 +638,57 @@ const ReplayPage = () => {
                     <Typography variant="caption" color="textSecondary">
                       {t('reportReplayNoStops')}
                     </Typography>
-                  )}
-                </Collapse>
+                  )
+                ) : index < positions.length ? (
+                  <>
+                    <Typography variant="subtitle2" align="center" sx={{ mt: 1 }}>
+                      {deviceName}
+                    </Typography>
+                    <Table size="small">
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>{t('positionFixTime')}</TableCell>
+                          <TableCell align="right">
+                            <PositionValue position={positions[index]} property="fixTime" />
+                          </TableCell>
+                        </TableRow>
+                        {positions[index].hasOwnProperty('address') && (
+                          <TableRow>
+                            <TableCell>{t('positionAddress')}</TableCell>
+                            <TableCell align="right">
+                              <PositionValue position={positions[index]} property="address" />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {positions[index].hasOwnProperty('speed') && (
+                          <TableRow>
+                            <TableCell>{t('positionSpeed')}</TableCell>
+                            <TableCell align="right">
+                              {`${formatSpeed(positions[index].speed, 'kmh', t)}`}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {positions[index].attributes?.hasOwnProperty('batteryLevel') && (
+                          <TableRow>
+                            <TableCell>{t('positionBatteryLevel')}</TableCell>
+                            <TableCell align="right">
+                              <PositionValue position={positions[index]} attribute="batteryLevel" />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <RouterLink to={`/position/${positions[index].id}`}>
+                        {t('sharedShowDetails')}
+                      </RouterLink>
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography variant="caption" color="textSecondary">
+                    {t('sharedNoData')}
+                  </Typography>
+                )}
               </div>
             </>
           )}
@@ -647,13 +697,16 @@ const ReplayPage = () => {
           </div>
         </Paper>
       </div>
-      {showCard && index < positions.length && (
-        <StatusCard
-          deviceId={selectedDeviceId}
-          position={positions[index]}
-          onClose={() => setShowCard(false)}
-          disableActions
-        />
+      {loaded && (
+        <Paper elevation={3} className={classes.followFab}>
+          <IconButton
+            title={t('deviceFollow')}
+            onClick={() => setFollow((value) => !value)}
+            sx={{ opacity: follow ? 1 : 0.4 }}
+          >
+            <MyLocationIcon />
+          </IconButton>
+        </Paper>
       )}
     </div>
   );
