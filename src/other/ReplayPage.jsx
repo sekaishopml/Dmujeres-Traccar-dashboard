@@ -130,6 +130,20 @@ const segmentDurationMs = (current, next, replaySpeed) => {
   return 500 / replaySpeed;
 };
 
+// Haversine local (mismo patrón que MapRoutePoints: pathDecimation no la exporta).
+const haversineMeters = (a, b) => {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const earthRadius = 6371000;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const la = toRad(a.latitude);
+  const lb = toRad(b.latitude);
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(la) * Math.cos(lb) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+
 const ReplayPage = () => {
   const t = useTranslation();
   const { classes } = useStyles();
@@ -156,6 +170,35 @@ const ReplayPage = () => {
   // Pestaña del panel lateral: 0 = Paradas, 1 = Detalles del punto actual.
   const [panelTab, setPanelTab] = useState(0);
   const stops = useMemo(() => detectStops(positions), [positions]);
+  // Velocidad mostrada en Detalles: el Doppler del equipo miente en 0 en
+  // marcha (medido: 83/185 fixes en 0 moviéndose), así que se toma el máximo
+  // entre reportada e implícita por ventana ±2 fixes. Banda muerta <2 km/h →
+  // 0 (jitter parado). Solo visual: los datos no se tocan.
+  const detailSpeedKmh = useMemo(() => {
+    const pos = index < positions.length ? positions[index] : null;
+    if (!pos) {
+      return NaN;
+    }
+    const reportedKn = Number(pos.speed);
+    let impliedKn = NaN;
+    const lo = positions[Math.max(0, index - 2)];
+    const hi = positions[Math.min(positions.length - 1, index + 2)];
+    if (lo && hi && lo !== hi) {
+      const dt =
+        (Date.parse(hi.fixTime || hi.deviceTime || hi.serverTime) -
+          Date.parse(lo.fixTime || lo.deviceTime || lo.serverTime)) /
+        1000;
+      if (dt > 0) {
+        impliedKn = haversineMeters(lo, hi) / dt / 0.514444;
+      }
+    }
+    const kn = Math.max(
+      Number.isFinite(reportedKn) ? reportedKn : 0,
+      Number.isFinite(impliedKn) ? impliedKn : 0,
+    );
+    const kmh = kn * 1.852;
+    return kmh < 2 ? 0 : kmh;
+  }, [positions, index]);
   const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
@@ -660,11 +703,11 @@ const ReplayPage = () => {
                             </TableCell>
                           </TableRow>
                         )}
-                        {positions[index].hasOwnProperty('speed') && (
+                        {Number.isFinite(detailSpeedKmh) && (
                           <TableRow>
                             <TableCell>{t('positionSpeed')}</TableCell>
                             <TableCell align="right">
-                              {`${formatSpeed(positions[index].speed, 'kmh', t)}`}
+                              {`${formatSpeed(detailSpeedKmh / 1.852, 'kmh', t)}`}
                             </TableCell>
                           </TableRow>
                         )}

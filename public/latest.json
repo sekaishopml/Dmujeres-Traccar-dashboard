@@ -1,6 +1,6 @@
 {
-  "version": "1.0.78",
+  "version": "1.0.79",
   "versionCode": 79,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.78/DMujeres-Tracking-1.0.78.apk",
-  "notes": "Flechas 100% reales + intervalo adaptativo 5 s en marcha."
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.79/DMujeres-Tracking-1.0.79.apk",
+  "notes": "Velocidad real con Doppler en 0 + Sentry cazando telemetría."
 }
