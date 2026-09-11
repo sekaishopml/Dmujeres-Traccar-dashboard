@@ -238,8 +238,8 @@ export const STOP_MAX_SPEED_KN = 3;
 /** Outliers consecutivos tolerados dentro de una parada antes de cerrarla. */
 export const STOP_MAX_OUTLIERS = 4;
 
-/** Duración mínima (ms) de una racha para reportarla como parada. */
-export const STOP_MIN_DURATION_MS = 5 * 60 * 1000;
+/** Duración mínima (ms) de quietud en el mismo lugar para contar una parada: 3 min. */
+export const STOP_MIN_DURATION_MS = 3 * 60 * 1000;
 
 /** Radio (m) para fusionar paradas contiguas del mismo lugar. */
 export const STOP_MERGE_RADIUS_M = 80;
