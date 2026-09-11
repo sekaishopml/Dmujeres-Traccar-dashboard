@@ -7,9 +7,10 @@ import { toMapCoordinates } from './core/mapUtil';
 // Trazo pegado a carretera (map-matching): polilínea ya casada con la red
 // vial que devuelve /api/positions/match. Donde no hubo vía (patios, caminos
 // nuevos), el servidor devuelve el fix crudo en la MISMA lista, así que la
-// línea es continua y nunca se desvía más que el dato honesto. Si no hay
-// segmentos, ReplayPage dibuja la línea honesta en su lugar.
-const MapRouteMatch = ({ segments, deviceId }) => {
+// línea es continua y nunca se desvía más que el dato honesto. Los tramos
+// cuyo segmento vino null (sin match) se dibujan con los puntos crudos del
+// input (tracks, mismo orden): ningún tramo queda nunca sin línea.
+const MapRouteMatch = ({ segments, tracks, deviceId }) => {
   const id = useId();
 
   const mapLineWidth = useAttributePreference('mapLineWidth', 2);
@@ -19,6 +20,10 @@ const MapRouteMatch = ({ segments, deviceId }) => {
     const attributes = deviceId ? state.devices.items[deviceId]?.attributes : null;
     return attributes?.['web.reportColor'] || null;
   });
+
+  // Color honesto para los tramos sin match (mismo sistema de la línea cruda:
+  // gris neutro que no compite con el azul carretera).
+  const HONEST_COLOR = '#64748b';
 
   useEffect(() => {
     map.addSource(id, {
@@ -58,30 +63,38 @@ const MapRouteMatch = ({ segments, deviceId }) => {
 
   const features = useMemo(() => {
     const list = [];
-    (segments || []).forEach((segment) => {
-      if (!Array.isArray(segment) || segment.length < 2) {
+    const roadColor = reportColor || '#1a73e8';
+    const pushLine = (a, b, color) => {
+      list.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: [toMapCoordinates(a[0], a[1]), toMapCoordinates(b[0], b[1])],
+        },
+        properties: {
+          color,
+          width: mapLineWidth,
+          opacity: mapLineOpacity,
+        },
+      });
+    };
+    (segments || []).forEach((segment, index) => {
+      if (Array.isArray(segment) && segment.length >= 2) {
+        for (let i = 0; i < segment.length - 1; i += 1) {
+          pushLine(segment[i], segment[i + 1], roadColor);
+        }
         return;
       }
-      for (let i = 0; i < segment.length - 1; i += 1) {
-        list.push({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: [
-              toMapCoordinates(segment[i][0], segment[i][1]),
-              toMapCoordinates(segment[i + 1][0], segment[i + 1][1]),
-            ],
-          },
-          properties: {
-            color: reportColor || '#1a73e8',
-            width: mapLineWidth,
-            opacity: mapLineOpacity,
-          },
-        });
+      // Sin match en este tramo: línea honesta con los puntos crudos del input.
+      const raw = (tracks || [])[index];
+      if (Array.isArray(raw)) {
+        for (let i = 0; i < raw.length - 1; i += 1) {
+          pushLine(raw[i], raw[i + 1], HONEST_COLOR);
+        }
       }
     });
     return list;
-  }, [segments, reportColor, mapLineWidth, mapLineOpacity]);
+  }, [segments, tracks, reportColor, mapLineWidth, mapLineOpacity]);
 
   useEffect(() => {
     map.getSource(id)?.setData({

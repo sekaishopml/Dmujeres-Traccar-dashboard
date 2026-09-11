@@ -166,6 +166,9 @@ const ReplayPage = () => {
   // Trazo pegado a carretera: segmentos matcheados por el servidor.
   // Si no hay match (matcher caído o sin vías), la línea honesta queda visible.
   const [matchSegments, setMatchSegments] = useState(null);
+  // Input crudo enviado al match (mismo orden que segments): para los tramos
+  // sin match se dibuja su línea honesta y ningún tramo queda vacío.
+  const [matchTracks, setMatchTracks] = useState(null);
   const hiddenCount =
     routeStats.hidden +
     routeStats.collapsed +
@@ -182,6 +185,7 @@ const ReplayPage = () => {
   useEffect(() => {
     if (!loaded || positions.length < 2) {
       setMatchSegments(null);
+      setMatchTracks(null);
       return;
     }
     let cancelled = false;
@@ -196,16 +200,19 @@ const ReplayPage = () => {
       .then((response) => response.json())
       .then((data) => {
         if (!cancelled) {
-          setMatchSegments(
-            Array.isArray(data.segments) && data.segments.some(Array.isArray)
-              ? data.segments
-              : null,
-          );
+          if (Array.isArray(data.segments) && data.segments.some(Array.isArray)) {
+            setMatchSegments(data.segments);
+            setMatchTracks(tracks);
+          } else {
+            setMatchSegments(null);
+            setMatchTracks(null);
+          }
         }
       })
       .catch(() => {
         if (!cancelled) {
           setMatchSegments(null);
+          setMatchTracks(null);
         }
       });
     return () => {
@@ -419,7 +426,11 @@ const ReplayPage = () => {
         <MapOverlay />
         <MapGeofence />
         {matchSegments ? (
-          <MapRouteMatch segments={matchSegments} deviceId={selectedDeviceId} />
+          <MapRouteMatch
+            segments={matchSegments}
+            tracks={matchTracks}
+            deviceId={selectedDeviceId}
+          />
         ) : (
           <MapRoutePath positions={positions} onStats={handleRouteStats} hideInaccurate={false} />
         )}
