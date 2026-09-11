@@ -101,6 +101,16 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
       type: 'FeatureCollection',
       features,
     });
+    // La línea casada se monta al último: sube los símbolos existentes
+    // (flechas, círculo GPS) para que nunca queden tapados, conservando su
+    // orden relativo entre ellos.
+    (map.getStyle()?.layers || []).forEach((layer) => {
+      if (layer.type === 'symbol' && layer.id !== id && layer.id !== `${id}-line`) {
+        if (map.getLayer(layer.id)) {
+          map.moveLayer(layer.id);
+        }
+      }
+    });
   }, [features, id]);
 
   return null;

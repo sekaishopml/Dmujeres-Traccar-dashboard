@@ -165,6 +165,15 @@ const MapRoutePath = ({ positions, onStats, hideInaccurate: hideInaccurateProp }
       type: 'FeatureCollection',
       features,
     });
+    // Si esta línea se (re)monta después que los símbolos, los devuelve
+    // encima para que nada tape flechas ni GPS.
+    (map.getStyle()?.layers || []).forEach((layer) => {
+      if (layer.type === 'symbol' && layer.id !== id && layer.id !== `${id}-line`) {
+        if (map.getLayer(layer.id)) {
+          map.moveLayer(layer.id);
+        }
+      }
+    });
   }, [features, id]);
 
   useEffect(() => {

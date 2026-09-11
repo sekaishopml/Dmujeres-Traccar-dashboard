@@ -73,6 +73,14 @@ const MapReplayMarker = ({ position, markerRef, onMarkerClick }) => {
           },
         ],
       });
+      // El círculo GPS siempre encima de las líneas en Z: la línea casada se
+      // monta después que el marcador y si no, lo tapa. Orden fijo en cada update.
+      if (map.getLayer(id)) {
+        map.moveLayer(id);
+      }
+      if (map.getLayer(`direction-${id}`)) {
+        map.moveLayer(`direction-${id}`);
+      }
     },
     [id],
   );

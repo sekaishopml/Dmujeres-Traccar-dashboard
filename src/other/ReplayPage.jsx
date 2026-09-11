@@ -169,6 +169,46 @@ const ReplayPage = () => {
   // Input crudo enviado al match (mismo orden que segments): para los tramos
   // sin match se dibuja su línea honesta y ningún tramo queda vacío.
   const [matchTracks, setMatchTracks] = useState(null);
+
+  // Vértices de la línea visible pegada a carretera (plano [lon,lat]): el
+  // círculo GPS se centra SOBRE la línea y no al lado del fix crudo.
+  const matchFlat = useMemo(() => {
+    if (!Array.isArray(matchSegments)) {
+      return [];
+    }
+    const flat = [];
+    matchSegments.forEach((segment) => {
+      if (Array.isArray(segment)) {
+        segment.forEach(([longitude, latitude]) => flat.push({ longitude, latitude }));
+      }
+    });
+    return flat;
+  }, [matchSegments]);
+  const snapToMatch = useCallback(
+    (longitude, latitude) => {
+      if (!matchFlat.length) {
+        return { longitude, latitude };
+      }
+      let best = 0;
+      let bestDist = Infinity;
+      const cosLat = Math.cos((latitude * Math.PI) / 180);
+      for (let i = 0; i < matchFlat.length; i += 1) {
+        const p = matchFlat[i];
+        const dLat = (p.latitude - latitude) * 111320;
+        const dLon = (p.longitude - longitude) * 111320 * cosLat;
+        const dist = dLat * dLat + dLon * dLon;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = i;
+        }
+      }
+      return matchFlat[best];
+    },
+    [matchFlat],
+  );
+  // Espejo para el loop rAF (no reinicia la animación al llegar el match).
+  const snapRef = useRef(snapToMatch);
+  snapRef.current = snapToMatch;
   const hiddenCount =
     routeStats.hidden +
     routeStats.collapsed +
@@ -278,20 +318,30 @@ const ReplayPage = () => {
         const to = list[currentIndex + 1];
         if (shouldCut(from, to)) {
           setIndex(currentIndex + 1);
-          markerRef.current?.setPosition({ longitude: to.longitude, latitude: to.latitude }, to);
+          const snapped = snapRef.current(to.longitude, to.latitude);
+          markerRef.current?.setPosition(
+            { longitude: snapped.longitude, latitude: snapped.latitude },
+            to,
+          );
           if (followRef.current) {
-            centerOn(to.longitude, to.latitude);
+            centerOn(snapped.longitude, snapped.latitude);
           }
           raf = requestAnimationFrame(step);
           return;
         }
+        // Extremos ajustados a la línea visible (match): el círculo pisa el
+        // trazo aunque el fix crudo esté a metros. Tiempos y cortes con raw.
+        const sFrom = snapRef.current(from.longitude, from.latitude);
+        const sTo = snapRef.current(to.longitude, to.latitude);
         seg = {
           from: currentIndex,
           to: currentIndex + 1,
           start: now,
           duration: segmentDurationMs(from, to, replaySpeed),
           speed: replaySpeed,
-          bearing: bearingDegrees(from, to),
+          bearing: bearingDegrees(sFrom, sTo),
+          sFrom,
+          sTo,
         };
         segRef.current = seg;
       }
@@ -304,24 +354,28 @@ const ReplayPage = () => {
       }
       const from = list[seg.from];
       const to = list[seg.to];
+      // Si el match llegó a mitad de tramo, los extremos crudos siguen
+      // sirviendo (snap es identidad sin match): no se reinicia nada.
+      const sFrom = seg.sFrom || { longitude: from.longitude, latitude: from.latitude };
+      const sTo = seg.sTo || { longitude: to.longitude, latitude: to.latitude };
       const progress = seg.duration > 0 ? (now - seg.start) / seg.duration : 1;
       if (progress >= 1) {
         setIndex(seg.to);
         segRef.current = null;
         markerRef.current?.setPosition(
-          { longitude: to.longitude, latitude: to.latitude, rotation: seg.bearing },
+          { longitude: sTo.longitude, latitude: sTo.latitude, rotation: seg.bearing },
           to,
         );
         if (followRef.current) {
-          centerOn(to.longitude, to.latitude);
+          centerOn(sTo.longitude, sTo.latitude);
         }
         if (seg.to >= list.length - 1) {
           setPlaying(false);
           return;
         }
       } else {
-        const longitude = from.longitude + (to.longitude - from.longitude) * progress;
-        const latitude = from.latitude + (to.latitude - from.latitude) * progress;
+        const longitude = sFrom.longitude + (sTo.longitude - sFrom.longitude) * progress;
+        const latitude = sFrom.latitude + (sTo.latitude - sFrom.latitude) * progress;
         markerRef.current?.setPosition({ longitude, latitude, rotation: seg.bearing }, to);
         if (followRef.current) {
           centerOn(longitude, latitude);
@@ -357,9 +411,21 @@ const ReplayPage = () => {
     }
     const fix = positions[index];
     if (fix) {
-      map.jumpTo({ center: toMapCoordinates(fix.longitude, fix.latitude) });
+      const snapped = snapToMatch(fix.longitude, fix.latitude);
+      map.jumpTo({ center: toMapCoordinates(snapped.longitude, snapped.latitude) });
     }
-  }, [positions, index, playing, follow]);
+  }, [positions, index, playing, follow, snapToMatch]);
+
+  // Posición visible del marcador: ajustada a la línea (match) para que el
+  // círculo pise el trazo; la tarjeta/label siguen con el fix crudo.
+  const displayPosition = useMemo(() => {
+    const fix = positions[index];
+    if (!fix) {
+      return fix;
+    }
+    const snapped = snapToMatch(fix.longitude, fix.latitude);
+    return { ...fix, longitude: snapped.longitude, latitude: snapped.latitude };
+  }, [positions, index, snapToMatch]);
 
   const handleTogglePlay = () => {
     if (!playing) {
@@ -443,7 +509,7 @@ const ReplayPage = () => {
         />
         {index < positions.length && (
           <MapReplayMarker
-            position={positions[index]}
+            position={displayPosition}
             markerRef={markerRef}
             onMarkerClick={onMarkerClick}
           />

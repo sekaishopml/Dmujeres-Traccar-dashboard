@@ -9,21 +9,33 @@ import {
   DECIMATION_THRESHOLD,
   filterSpikes,
   MAX_GAP_MS,
-  shouldCut,
   simplify,
   SMOOTH_FLOOR_M,
   smoothChaikinOnce,
   splitByGapAndTeleport,
-  strideForZoom,
   toleranceForZoom,
 } from './util/pathDecimation';
 import { useAttributePreference } from '../common/util/preferences';
 
-/** Separación mínima (m) entre flechas: evita apilarlas en paradas y tramos lentos. */
+/** Separación mínima (m) entre flechas: guardia final contra apilados en paradas. */
 const MIN_ARROW_SEPARATION_M = 15;
 
 /** Tope de flechas a dibujar (rutas muy largas): el resto solo se ve como línea. */
 const MAX_ARROWS = 800;
+
+/**
+ * Paso (m) entre flechas según zoom: la flecha cae SOBRE el tramo por
+ * arco-longitud aunque sus vértices estén a cientos de metros (rectas
+ * largas), así ningún punto del trazo se queda sin flecha.
+ */
+const STEP_FOR_ZOOM = (zoom) => {
+  if (zoom < 9) return 800;
+  if (zoom <= 10) return 400;
+  if (zoom <= 12) return 150;
+  if (zoom === 13) return 80;
+  if (zoom === 14) return 40;
+  return 25;
+};
 
 /** Distancia en metros entre dos posiciones (haversine local: pathDecimation no la exporta). */
 const haversineMeters = (a, b) => {
@@ -39,14 +51,14 @@ const haversineMeters = (a, b) => {
   return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(h)));
 };
 
-// Flechas de rumbo sobre la ruta, como el Traccar original (densidad clásica
-// por zoom, en TODOS los zooms), con tres optimizaciones:
-//  1) nunca se apilan: mínimo 15 m entre flechas (las paradas no manchan);
-//  2) el rumbo NO sale de position.course (viene rancio o en 0): se calcula
-//     con los vecinos de la lista que dibuja la línea visible;
-//  3) si hay trazo pegado a carretera (matchSegments), las flechas se posan
-//     SOBRE la línea visible y se orientan con ella; el color y el click
-//     siguen siendo del fix real más cercano (datos honestos).
+// Flechas de rumbo sobre la ruta, como el Traccar original (en TODOS los
+// zooms), con tres optimizaciones:
+//  1) se colocan por DISTANCIA caminando cada tramo (nunca faltan en rectas
+//     largas de vértices escasos, nunca sobran en junctions densas);
+//  2) el rumbo es el de la cuerda donde cae la flecha (exacto en la línea
+//     visible), nunca el course rancio del equipo;
+//  3) si hay trazo pegado a carretera (matchSegments), las flechas pisan sus
+//     vértices; el color y el click siguen siendo del fix real más cercano.
 const MapRoutePoints = ({
   positions,
   onClick,
@@ -129,57 +141,103 @@ const MapRoutePoints = ({
   const features = useMemo(() => {
     const hideInaccurate =
       hideInaccurateProp !== undefined ? hideInaccurateProp : hideInaccuratePref;
-    // Con match activo, la línea visible es la pegada a carretera: las flechas
-    // pisan sus vértices (un chunkId por segmento, ya vienen cortados).
-    const useMatched =
-      Array.isArray(matchSegments) && matchSegments.some((s) => Array.isArray(s) && s.length >= 2);
-    let flat;
-    if (useMatched) {
-      flat = [];
-      matchSegments.forEach((segment, chunkId) => {
-        if (!Array.isArray(segment)) {
-          return;
+    // Trozos como listas de {latitude, longitude}: con match, los vértices de
+    // la línea visible; si no, el trazo limpio+decimado (misma limpieza que la
+    // línea). Ya vienen cortados por huecos: nunca se camina sobre un corte.
+    let chunks;
+    if (
+      Array.isArray(matchSegments) &&
+      matchSegments.some((s) => Array.isArray(s) && s.length >= 2)
+    ) {
+      chunks = [];
+      matchSegments.forEach((segment) => {
+        if (Array.isArray(segment) && segment.length >= 2) {
+          chunks.push(segment.map(([longitude, latitude]) => ({ latitude, longitude })));
         }
-        segment.forEach(([longitude, latitude]) => {
-          flat.push({ position: { latitude, longitude }, chunkId });
-        });
       });
     } else {
       const { points: working } = cleanRoutePositions(positions, {
         hideInaccurate,
         accuracyThreshold,
       });
-      let chunks = splitByGapAndTeleport(working, MAX_GAP_MS);
+      let rawChunks = splitByGapAndTeleport(working, MAX_GAP_MS);
       if (working.length > DECIMATION_THRESHOLD) {
         const tolerance = Math.max(toleranceForZoom(zoom), SMOOTH_FLOOR_M / 111320);
-        chunks = chunks.map((chunk) => smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)));
+        rawChunks = rawChunks.map((chunk) =>
+          smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)),
+        );
       }
-      flat = [];
-      chunks.forEach((chunk, chunkId) => {
-        chunk.forEach((position) => flat.push({ position, chunkId }));
-      });
+      chunks = rawChunks.map((chunk) =>
+        chunk.map((p) => ({ latitude: p.latitude, longitude: p.longitude })),
+      );
     }
-    if (!flat.length) {
+    if (!chunks.length) {
       return [];
     }
-    const byId = new Map();
-    positions.forEach((position, index) => {
-      if (position?.id !== undefined && !byId.has(position.id)) {
-        byId.set(position.id, index);
+    // Longitud total para el tope anti-lag.
+    let totalLen = 0;
+    chunks.forEach((chunk) => {
+      for (let i = 0; i < chunk.length - 1; i += 1) {
+        totalLen += haversineMeters(chunk[i], chunk[i + 1]);
       }
     });
-    // Fix real más cercano a una coordenada (para color por velocidad y click):
-    // solo se usa en modo match (en honesto la flecha YA es el fix).
-    const nearestRawIndex = (latitude, longitude) => {
+    const step = Math.max(STEP_FOR_ZOOM(zoom), totalLen > 0 ? totalLen / MAX_ARROWS : 0);
+    // Camina cada trozo: flecha al inicio + una cada `step` metros con el
+    // rumbo de su cuerda. Así las rectas largas tienen flechas y las zonas
+    // densas no se apelotonan (el acumulado reparte el sobrante).
+    const placed = [];
+    chunks.forEach((chunk) => {
+      if (!chunk.length) {
+        return;
+      }
+      placed.push({
+        ...chunk[0],
+        rotation: chunk.length > 1 ? bearingDegrees(chunk[0], chunk[1]) : 0,
+      });
+      let acc = 0;
+      for (let i = 0; i < chunk.length - 1; i += 1) {
+        const a = chunk[i];
+        const b = chunk[i + 1];
+        const legLen = haversineMeters(a, b);
+        if (!(legLen > 0)) {
+          continue;
+        }
+        const legBearing = bearingDegrees(a, b);
+        let d = step - acc;
+        while (d <= legLen) {
+          const f = d / legLen;
+          placed.push({
+            latitude: a.latitude + (b.latitude - a.latitude) * f,
+            longitude: a.longitude + (b.longitude - a.longitude) * f,
+            rotation: legBearing,
+          });
+          d += step;
+        }
+        acc = (acc + legLen) % step;
+      }
+    });
+    // Guardia anti-apilado (paradas, junctions densas): mínimo 15 m.
+    const kept = [];
+    placed.forEach((arrow, arrowIndex) => {
+      const previous = kept[kept.length - 1];
+      const isLast = arrowIndex === placed.length - 1;
+      if (!previous || haversineMeters(previous, arrow) >= MIN_ARROW_SEPARATION_M || isLast) {
+        kept.push(arrow);
+      }
+    });
+    // Fix real más cercano a cada flecha (color por velocidad y click):
+    // la flecha pisa la línea, el dato sigue siendo honesto.
+    const nearestRawIndex = ({ latitude, longitude }) => {
       let best = -1;
       let bestDist = Infinity;
+      const cosLat = Math.cos((latitude * Math.PI) / 180);
       for (let i = 0; i < positions.length; i += 1) {
         const p = positions[i];
         if (p == null) {
           continue;
         }
         const dLat = (p.latitude - latitude) * 111320;
-        const dLon = (p.longitude - longitude) * 111320 * Math.cos((latitude * Math.PI) / 180);
+        const dLon = (p.longitude - longitude) * 111320 * cosLat;
         const dist = dLat * dLat + dLon * dLon;
         if (dist < bestDist) {
           bestDist = dist;
@@ -188,81 +246,25 @@ const MapRoutePoints = ({
       }
       return best;
     };
-    const rotationOf = (flatIndex) => {
-      const { position, chunkId } = flat[flatIndex];
-      const prevEntry =
-        flatIndex > 0 && flat[flatIndex - 1].chunkId === chunkId
-          ? flat[flatIndex - 1].position
-          : null;
-      const nextEntry =
-        flatIndex < flat.length - 1 && flat[flatIndex + 1].chunkId === chunkId
-          ? flat[flatIndex + 1].position
-          : null;
-      // simplify puede crear un salto al quitar intermedios: no orientar con
-      // un tramo que la línea no dibuja (gap/teleport).
-      const prev = prevEntry && !shouldCut(prevEntry, position, MAX_GAP_MS) ? prevEntry : null;
-      const next = nextEntry && !shouldCut(position, nextEntry, MAX_GAP_MS) ? nextEntry : null;
-      if (prev && next) {
-        return bearingDegrees(prev, next);
-      }
-      if (next) {
-        return bearingDegrees(position, next);
-      }
-      if (prev) {
-        return bearingDegrees(prev, position);
-      }
-      return 0;
-    };
-    // Densidad clásica del Traccar original por zoom (en todos los zooms),
-    // con tope anti-lag para rutas larguísimas.
-    const zoomStride = strideForZoom(zoom);
-    const stride = Math.max(zoomStride, Math.ceil(flat.length / MAX_ARROWS));
-    const sampledIndexes = flat
-      .map((_, flatIndex) => flatIndex)
-      .filter((flatIndex) => flatIndex % stride === 0 || flatIndex === flat.length - 1);
-    // Sin flechas apiladas: descarta las que queden a menos de MIN_ARROW_SEPARATION_M
-    // de la última dibujada; la primera muestreada y la del último punto siempre van.
-    const separatedIndexes = [];
-    sampledIndexes.forEach((flatIndex, sampleIndex) => {
-      const previous = separatedIndexes[separatedIndexes.length - 1];
-      const isLast = sampleIndex === sampledIndexes.length - 1;
-      const farEnough =
-        previous === undefined ||
-        haversineMeters(flat[previous].position, flat[flatIndex].position) >=
-          MIN_ARROW_SEPARATION_M;
-      if (farEnough || isLast) {
-        separatedIndexes.push(flatIndex);
-      }
-    });
-    // Resuelve color/click: en honesto es el propio fix; en match, el fix real
-    // más cercano a la flecha (la flecha pisa la línea visible).
-    const resolved = separatedIndexes.map((flatIndex) => {
-      if (!useMatched) {
-        return { flatIndex, rawIndex: -1, position: flat[flatIndex].position };
-      }
-      const { position } = flat[flatIndex];
-      const rawIndex = nearestRawIndex(position.latitude, position.longitude);
-      const raw = rawIndex >= 0 ? positions[rawIndex] : null;
-      return { flatIndex, rawIndex, position: raw || position };
-    });
-    const speeds = resolved.map(({ position }) => Number(position?.speed)).filter(Number.isFinite);
+    const resolved = kept.map((arrow) => ({ arrow, rawIndex: nearestRawIndex(arrow) }));
+    const speeds = resolved
+      .map(({ rawIndex }) => (rawIndex >= 0 ? Number(positions[rawIndex]?.speed) : NaN))
+      .filter(Number.isFinite);
     const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
     const minSpeed = speeds.length ? Math.min(...speeds) : 0;
-    return resolved.map(({ flatIndex, rawIndex, position }) => {
-      const { position: arrowPosition } = flat[flatIndex];
-      const hasId = position?.id !== undefined;
+    return resolved.map(({ arrow, rawIndex }) => {
+      const raw = rawIndex >= 0 ? positions[rawIndex] : null;
       return {
         type: 'Feature',
         geometry: {
           type: 'Point',
-          coordinates: toMapCoordinates(arrowPosition.longitude, arrowPosition.latitude),
+          coordinates: toMapCoordinates(arrow.longitude, arrow.latitude),
         },
         properties: {
-          index:
-            rawIndex >= 0 ? rawIndex : hasId && byId.has(position.id) ? byId.get(position.id) : 0,
-          id: position?.id,
-          rotation: rotationOf(flatIndex),
-          color: getSpeedColor(Number(position?.speed), minSpeed, maxSpeed),
+          index: rawIndex >= 0 ? rawIndex : 0,
+          id: raw?.id,
+          rotation: arrow.rotation,
+          color: getSpeedColor(Number(raw?.speed), minSpeed, maxSpeed),
         },
       };
     });
@@ -273,6 +275,10 @@ const MapRoutePoints = ({
       type: 'FeatureCollection',
       features,
     });
+    // Las flechas siempre encima de las líneas.
+    if (map.getLayer(id)) {
+      map.moveLayer(id);
+    }
   }, [features, id]);
 
   return showSpeedControl ? <MapSpeedLegend positions={positions} /> : null;
