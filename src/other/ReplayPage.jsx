@@ -439,6 +439,7 @@ const ReplayPage = () => {
           onClick={onPointClick}
           showSpeedControl
           hideInaccurate={false}
+          matchSegments={matchSegments}
         />
         {index < positions.length && (
           <MapReplayMarker
