@@ -125,11 +125,76 @@ function forEachRobustRun(positions, radiusM, maxSpeedKn, maxOutliers, visit) {
 }
 
 /**
+ * Diámetro máximo (m) de una racha para considerarla quieta de verdad: si dos
+ * puntos cualesquiera de la racha distan más del doble del radio, la racha se
+ * desplazó (arranque lento, crawl de tráfico) y NO se colapsa: el colapso de
+ * paradas jamás toca puntos en movimiento. Cota rápida por bounding box
+ * (diagonal ≤ 2R ⇒ quieta; lado > 2R ⇒ movida) y, en la zona gris, diámetro
+ * exacto sobre el casco convexo (monotone chain): O(n log n) con h pequeños,
+ * viable para rachas de miles de puntos que se recalculan en cada zoom.
+ */
+function runIsStationary(run, radiusM) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const earthRadius = 6371000;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  run.forEach((p) => {
+    if (p.latitude < minLat) minLat = p.latitude;
+    if (p.latitude > maxLat) maxLat = p.latitude;
+    if (p.longitude < minLon) minLon = p.longitude;
+    if (p.longitude > maxLon) maxLon = p.longitude;
+  });
+  const limit = radiusM * 2;
+  const latSpanM = toRad(maxLat - minLat) * earthRadius;
+  const midLatCos = Math.cos(toRad((minLat + maxLat) / 2));
+  const lonSpanM = toRad(maxLon - minLon) * earthRadius * midLatCos;
+  if (Math.hypot(latSpanM, lonSpanM) <= limit) {
+    return true;
+  }
+  if (Math.max(latSpanM, lonSpanM) > limit) {
+    return false;
+  }
+  // Zona gris: diámetro exacto = máximo par de vértices del casco convexo.
+  const pts = run
+    .map((p) => ({ x: p.longitude * midLatCos, y: p.latitude }))
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const hull = [];
+  for (let pass = 0; pass < 2; pass += 1) {
+    const src = pass === 0 ? pts : pts.slice().reverse();
+    const part = [];
+    src.forEach((p) => {
+      while (part.length >= 2 && cross(part[part.length - 2], part[part.length - 1], p) <= 0) {
+        part.pop();
+      }
+      part.push(p);
+    });
+    part.pop();
+    hull.push(...part);
+  }
+  const toMeters = (p) => ({ x: toRad(p.x) * earthRadius, y: toRad(p.y) * earthRadius });
+  const hullM = hull.map(toMeters);
+  for (let i = 0; i < hullM.length - 1; i += 1) {
+    for (let j = i + 1; j < hullM.length; j += 1) {
+      if (Math.hypot(hullM[j].x - hullM[i].x, hullM[j].y - hullM[i].y) > limit) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
  * Colapsa rachas quietas solo para renderizado: rachas robustas (misma lógica
  * que detectStops: centro incremental de STILL_RADIUS_M, hasta
  * STILL_MAX_OUTLIERS outliers Doppler < STILL_SPEED_KN y cierre al alejarse
- * rápido) de 2+ puntos con duración > STILL_MIN_MS se sustituyen por un solo
- * punto representativo (mediana, marcado con cluster: true).
+ * rápido) de 2+ puntos con duración > STILL_MIN_MS, PERO SOLO si la racha es
+ * estacionaria de verdad (diámetro <= 2·STILL_RADIUS_M, ver runIsStationary):
+ * una racha que se desplazó (arranque lento, tráfico gateando) se conserva
+ * cruda; el colapso nunca oculta puntos en movimiento. Se sustituyen por un
+ * solo punto representativo (mediana, marcado con cluster: true).
  * Devuelve { points, collapsed } donde collapsed es cuántos puntos se ahorran.
  */
 export function collapseStillClusters(positions, indexOf = null) {
@@ -146,7 +211,12 @@ export function collapseStillClusters(positions, indexOf = null) {
     (runStart, end) => {
       const run = positions.slice(runStart, end);
       const span = timeOf(run[run.length - 1]) - timeOf(run[0]);
-      if (run.length > 1 && Number.isFinite(span) && span > STILL_MIN_MS) {
+      if (
+        run.length > 1 &&
+        Number.isFinite(span) &&
+        span > STILL_MIN_MS &&
+        runIsStationary(run, STILL_RADIUS_M)
+      ) {
         const [fromIdx] = spanOf(run[0], indexOf, runStart);
         const [, toIdx] = spanOf(run[run.length - 1], indexOf, end - 1);
         points.push(medianOfRun(run, fromIdx, toIdx));
@@ -428,16 +498,23 @@ export function simplify(points, tolerance) {
 
 /**
  * Piso mínimo (m) de la tolerancia de simplificación: aunque el zoom pida más
- * detalle, Douglas-Peucker nunca baja de 15 m. Es lo que elimina el
- * micro-zigzag (legs < 50 m) sin comerse viajes reales.
+ * detalle, Douglas-Peucker nunca baja de 10 m. Suficiente para borrar el
+ * temblor del GPS (<10 m) y conservar las esquinas reales: un tramo de 10 s
+ * a 60 km/h mide ~166 m y su vértice de giro supera holgadamente 10 m de
+ * desviación perpendicular, así que DP lo mantiene.
  */
-export const SMOOTH_FLOOR_M = 15;
+export const SMOOTH_FLOOR_M = 10;
 
-/** Giro mínimo (grados, cambio de rumbo) para recortar una esquina. */
-export const CHAIKIN_MIN_ANGLE = 90;
+/** Giro mínimo (grados, cambio de rumbo) para recortar una esquina.
+ * 130°: solo giros casi de retorno (zigzag cerrado) se redondean; una esquina
+ * de calle típica (~90°) conserva su vértice para que el trazo gire en la
+ * intersección y no la corte en diagonal. */
+export const CHAIKIN_MIN_ANGLE = 130;
 
-/** Tramo máximo (m) de alguna pata para recortar: solo micro-zigzag corto. */
-export const CHAIKIN_MAX_LEG_M = 50;
+/** Tramo máximo (m) de alguna pata para recortar: solo micro-zigzag corto.
+ * 30 m: a 10 s entre fixes esto solo aplica a ruido quieto, nunca a tramos
+ * conduciendo (un tramo real a >10 km/h ya mide >27 m). */
+export const CHAIKIN_MAX_LEG_M = 30;
 
 /** Ratio de corte de esquina (0.25: Q al 75% hacia B, R al 25% hacia C). */
 export const CHAIKIN_RATIO = 0.25;
@@ -821,10 +898,13 @@ export const ISOLATED_JUMP_SPEED_MPS = 8;
 export const MIN_ACCURACY_THRESHOLD_M = 30;
 
 export function cleanRoutePositions(positions, { hideInaccurate, accuracyThreshold }) {
-  // Piso de 30 m: un umbral menor (p.ej. 13 m) esconde ruta real porque el
-  // GPS de teléfono rara vez baja de 10-30 m. Sin este piso, el 75% del
-  // trazo desaparece y las cuerdas entre sobrevivientes dibujan zigzag.
-  const th = Math.max(MIN_ACCURACY_THRESHOLD_M, Number(accuracyThreshold) || 80);
+  // Por defecto 250 m: en marcha muchos teléfonos (p. ej. ZTE) reportan
+  // 120-200 m de accuracy con fixes válidos, y esconderlos borraba la ruta
+  // conduciendo. Con 250 solo salen fixes inválidos (valid === false), redes
+  // (proveedor network/unknown) o accuracy realmente absurdo (>250 m).
+  // Piso de 30 m: un umbral menor sigue escondiendo ruta real porque el GPS
+  // de teléfono rara vez baja de 10-30 m. Se respeta la preferencia explícita.
+  const th = Math.max(MIN_ACCURACY_THRESHOLD_M, Number(accuracyThreshold) || 250);
   const total = positions.length;
   const origIndex = new Map();
   positions.forEach((p, i) => {

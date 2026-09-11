@@ -20,10 +20,10 @@ const MapDeviceTrail = () => {
   );
   const mapLiveRoutes = useAttributePreference('mapLiveRoutes', 'none');
   const hideInaccurate = useAttributePreference('web.hideInaccurate', true);
-  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 80);
+  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
-    : 80;
+    : 250;
 
   const [trail, setTrail] = useState([]);
 

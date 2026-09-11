@@ -310,12 +310,12 @@ const PreferencesPage = () => {
                     label={t('attributeWebAccuracyThreshold')}
                     helperText={t('attributeWebAccuracyThresholdHelp')}
                     type="number"
-                    value={attributes['web.accuracyThreshold'] ?? 80}
+                    value={attributes['web.accuracyThreshold'] ?? 250}
                     onChange={(e) =>
                       setAttributes({
                         ...attributes,
                         'web.accuracyThreshold':
-                          e.target.value === '' ? 80 : Math.max(30, Number(e.target.value)),
+                          e.target.value === '' ? 250 : Math.max(30, Number(e.target.value)),
                       })
                     }
                     disabled={

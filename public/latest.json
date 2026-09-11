@@ -1,6 +1,6 @@
 {
-  "version": "1.0.75",
-  "versionCode": 76,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.75/DMujeres-Tracking-1.0.75.apk",
-  "notes": "Duración a prueba de saltos de reloj (monotónica), widget de inicio/fin de jornada y monitor de salud con reportes al servidor."
+  "version": "1.0.76",
+  "versionCode": 77,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.76/DMujeres-Tracking-1.0.76.apk",
+  "notes": "Widget 2x2 legible, diagnóstico en vivo en la pantalla principal, menos notificaciones repetidas, mejor distinción datos apagados vs sin señal, y trazo más fiel en carretera con todas las ubicaciones visibles."
 }

@@ -114,10 +114,10 @@ const MapRoutePoints = ({ positions, onClick, showSpeedControl }) => {
   }, [onMarkerClick, id]);
 
   const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
-  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 80);
+  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
-    : 80;
+    : 250;
 
   const features = useMemo(() => {
     // Zoom < 12: a lo lejos la línea sola basta, sin flechas que saturen la vista.

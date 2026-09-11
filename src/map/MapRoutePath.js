@@ -45,11 +45,11 @@ const MapRoutePath = ({ positions, onStats }) => {
   const mapLineWidth = useAttributePreference('mapLineWidth', 2);
   const mapLineOpacity = useAttributePreference('mapLineOpacity', 1);
   const hideInaccuratePref = useAttributePreference('web.hideInaccurate', true);
-  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 80);
+  const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const hideInaccurate = hideInaccuratePref;
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
-    : 80;
+    : 250;
 
   useEffect(() => {
     map.addSource(id, {
