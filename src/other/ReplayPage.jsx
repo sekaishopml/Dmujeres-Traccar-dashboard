@@ -34,12 +34,16 @@ import MapRoutePath from '../map/MapRoutePath';
 import MapRoutePoints from '../map/MapRoutePoints';
 import MapRouteMatch from '../map/MapRouteMatch';
 import MapReplayMarker from '../map/MapReplayMarker';
+import { bearingDegrees, decimateForMatch, shouldCut } from '../map/util/pathDecimation';
 import {
-  bearingDegrees,
-  decimateForMatch,
-  detectStops,
-  shouldCut,
-} from '../map/util/pathDecimation';
+  analyzeStops,
+  clockAudit,
+  FLAG,
+  flagAnomalies,
+  integritySummary,
+  offlinePeriods,
+  syncDelayMs,
+} from '../map/util/replayAudit';
 import { formatSpeed, formatTime } from '../common/util/formatter';
 import ReportFilter from '../reports/components/ReportFilter';
 import { useTranslation } from '../common/components/LocalizationProvider';
@@ -170,15 +174,37 @@ const ReplayPage = () => {
   const [follow, setFollow] = useState(mapFollowPref);
   // Pestaña del panel lateral: 0 = Paradas, 1 = Detalles del punto actual.
   const [panelTab, setPanelTab] = useState(0);
-  const stops = useMemo(() => detectStops(positions), [positions]);
-  // Velocidad mostrada en Detalles: el Doppler del equipo miente en 0 en
-  // marcha (medido: 83/185 fixes en 0 moviéndose), así que se toma el máximo
-  // entre reportada e implícita por ventana ±2 fixes. Banda muerta <2 km/h →
-  // 0 (jitter parado). Solo visual: los datos no se tocan.
-  const detailSpeedKmh = useMemo(() => {
+  // Auditoría del replay (solo lectura, nunca toca `positions`): paradas
+  // enriquecidas (mismos índices que detectStops + precisión mediana),
+  // banderas por fix, periodos sin cobertura, reloj e integridad.
+  const audit = useMemo(() => {
+    const enriched = analyzeStops(positions);
+    const flags = flagAnomalies(positions, { accuracyThreshold });
+    const offline = offlinePeriods(positions);
+    const clock = clockAudit(positions);
+    return {
+      stops: enriched,
+      flags,
+      offline,
+      clock,
+      integrity: integritySummary({
+        positions,
+        stops: enriched,
+        offlinePeriods: offline,
+        flags,
+        clock,
+      }),
+    };
+  }, [positions, accuracyThreshold]);
+  const { stops } = audit;
+  // Velocidad en Detalles: reportada (Doppler del equipo) y derivada
+  // (geometría ±2 fixes) por separado. El Doppler miente en 0 en marcha
+  // (medido: 83/185 fixes en 0 moviéndose); la derivada lo respalda.
+  // Banda muerta <2 km/h → 0 (jitter parado). Solo visual: los datos no se tocan.
+  const detailSpeed = useMemo(() => {
     const pos = index < positions.length ? positions[index] : null;
     if (!pos) {
-      return NaN;
+      return { reportedKmh: NaN, derivedKmh: NaN };
     }
     const reportedKn = Number(pos.speed);
     let impliedKn = NaN;
@@ -193,13 +219,44 @@ const ReplayPage = () => {
         impliedKn = haversineMeters(lo, hi) / dt / 0.514444;
       }
     }
-    const kn = Math.max(
-      Number.isFinite(reportedKn) ? reportedKn : 0,
-      Number.isFinite(impliedKn) ? impliedKn : 0,
-    );
-    const kmh = kn * 1.852;
-    return kmh < 2 ? 0 : kmh;
+    const reportedKmh = Number.isFinite(reportedKn) ? reportedKn * 1.852 : NaN;
+    const derivedRaw = Number.isFinite(impliedKn) ? impliedKn * 1.852 : NaN;
+    return {
+      reportedKmh,
+      derivedKmh: Number.isFinite(derivedRaw) && derivedRaw < 2 ? 0 : derivedRaw,
+    };
   }, [positions, index]);
+  // Banderas de auditoría del fix actual (nombres localizados, en orden).
+  const flagLabels = useMemo(() => {
+    const list = (index < audit.flags.length ? audit.flags[index] : []) || [];
+    const names = {
+      [FLAG.TELEPORT]: t('replayFlagTeleport'),
+      [FLAG.GAP]: t('replayFlagGap'),
+      [FLAG.SPEED]: t('replayFlagSpeed'),
+      [FLAG.TIME]: t('replayFlagTime'),
+      [FLAG.DUPLICATE]: t('replayFlagDuplicate'),
+      [FLAG.LOW_ACCURACY]: t('replayFlagLowAccuracy'),
+      [FLAG.SYNCED]: t('replayFlagSynced'),
+      [FLAG.CLOCK]: t('replayFlagClock'),
+    };
+    return list.map((code) => names[code] || code);
+  }, [audit, index, t]);
+  // Periodo sin cobertura que termina en el fix actual (si lo hay).
+  const coverageGap = useMemo(
+    () => audit.offline.find((period) => period.toIndex === index) || null,
+    [audit, index],
+  );
+  // Retraso de sincronización del fix actual, ya formateado (vacío si fresco).
+  const syncDelayCaption = useMemo(() => {
+    if (index >= positions.length) {
+      return '';
+    }
+    const delay = syncDelayMs(positions[index]);
+    if (Number.isFinite(delay) && delay > 60000) {
+      return ` · ${t('replayAuditSyncDelay')}: ${formatStopDuration(delay)}`;
+    }
+    return '';
+  }, [positions, index, t]);
   const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
@@ -585,6 +642,9 @@ const ReplayPage = () => {
               <Typography variant="subtitle1" align="center">
                 {deviceName}
               </Typography>
+              <Typography variant="caption" align="center" display="block" color="textSecondary">
+                {`${audit.integrity.rawCount} ${t('replayAuditPositions')} · ${audit.integrity.stopCount} ${t('reportReplayStops').toLowerCase()} · ${audit.integrity.offlineCount} ${t('replayAuditOffline')}`}
+              </Typography>
               <Slider
                 className={classes.slider}
                 max={positions.length - 1}
@@ -683,7 +743,7 @@ const ReplayPage = () => {
                         >
                           <ListItemText
                             primary={`${formatTime(stop.arrivalTime, 'time')} – ${formatTime(stop.departureTime, 'time')}`}
-                            secondary={`${formatStopDuration(stop.durationMs)} · ${stop.pointCount} ${t('reportReplayPoints')}`}
+                            secondary={`${formatStopDuration(stop.durationMs)} · ${stop.pointCount} ${t('reportReplayPoints')}${stop.accuracyMed != null ? ` · ±${Math.round(stop.accuracyMed)} m` : ''}`}
                           />
                         </ListItemButton>
                       ))}
@@ -714,12 +774,70 @@ const ReplayPage = () => {
                             </TableCell>
                           </TableRow>
                         )}
-                        {Number.isFinite(detailSpeedKmh) && (
+                        {Number.isFinite(detailSpeed.reportedKmh) && (
                           <TableRow>
-                            <TableCell>{t('positionSpeed')}</TableCell>
+                            <TableCell>{t('replayAuditReportedSpeed')}</TableCell>
                             <TableCell align="right">
-                              {`${formatSpeed(detailSpeedKmh / 1.852, 'kmh', t)}`}
+                              {`${formatSpeed(detailSpeed.reportedKmh / 1.852, 'kmh', t)}`}
                             </TableCell>
+                          </TableRow>
+                        )}
+                        {Number.isFinite(detailSpeed.derivedKmh) && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditDerivedSpeed')}</TableCell>
+                            <TableCell align="right">
+                              {`${formatSpeed(detailSpeed.derivedKmh / 1.852, 'kmh', t)}`}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {Number.isFinite(Number(positions[index].accuracy)) && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditAccuracy')}</TableCell>
+                            <TableCell align="right">
+                              {`±${Math.round(Number(positions[index].accuracy))} m`}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {positions[index].attributes?.provider && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditProvider')}</TableCell>
+                            <TableCell align="right">
+                              {positions[index].attributes.provider}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {positions[index].deviceTime && (
+                          <TableRow>
+                            <TableCell>{t('positionDeviceTime')}</TableCell>
+                            <TableCell align="right">
+                              <PositionValue position={positions[index]} property="deviceTime" />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {positions[index].attributes?.serverReceivedAt && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditServerReceived')}</TableCell>
+                            <TableCell align="right">
+                              <PositionValue
+                                position={positions[index]}
+                                attribute="serverReceivedAt"
+                              />
+                              {syncDelayCaption}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {coverageGap && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditNoCoverage')}</TableCell>
+                            <TableCell align="right">
+                              {formatStopDuration(coverageGap.gapMs)}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {flagLabels.length > 0 && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditAnomalies')}</TableCell>
+                            <TableCell align="right">{flagLabels.join(' · ')}</TableCell>
                           </TableRow>
                         )}
                         {positions[index].attributes?.hasOwnProperty('batteryLevel') && (
