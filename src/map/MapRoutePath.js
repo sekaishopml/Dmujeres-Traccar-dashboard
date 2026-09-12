@@ -1,32 +1,20 @@
-import { useId, useEffect, useMemo, useState } from 'react';
+import { useId, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { map } from './core/MapView';
 import getSpeedColor from '../common/util/colors';
 import { useAttributePreference } from '../common/util/preferences';
 import { toMapCoordinates } from './core/mapUtil';
-import {
-  cleanRoutePositions,
-  DECIMATION_THRESHOLD,
-  filterSpikes,
-  MAX_GAP_MS,
-  shouldCut,
-  simplify,
-  SMOOTH_FLOOR_M,
-  smoothChaikinOnce,
-  splitByGapAndTeleport,
-  toleranceForZoom,
-} from './util/pathDecimation';
+import { buildCanonicalRouteGeometry, lineSegmentsFor } from './util/canonicalRouteGeometry';
 
+// Línea de ruta desde la GEOMETRÍA CANÓNICA: los mismos chunks y distancias
+// que usan las flechas (MapRoutePoints). La línea y las flechas representan
+// exactamente la misma ruta por construcción: antes la línea simplificaba por
+// zoom (Douglas-Peucker + Chaikin) sobre una lista y las flechas muestreaban
+// `índice % stride` sobre otra, y divergían en curvas y densidades.
+// Sin dependencia del zoom: la geometría es estable y no re-renderiza al
+// hacer zoom (las flechas sí ajustan su espaciado físico).
 const MapRoutePath = ({ positions, onStats, hideInaccurate: hideInaccurateProp }) => {
   const id = useId();
-
-  const [zoom, setZoom] = useState(() => map.getZoom());
-
-  useEffect(() => {
-    const updateZoom = () => setZoom(map.getZoom());
-    map.on('zoomend', updateZoom);
-    return () => map.off('zoomend', updateZoom);
-  }, []);
 
   const reportColor = useSelector((state) => {
     const position = positions?.find(() => true);
@@ -91,74 +79,31 @@ const MapRoutePath = ({ positions, onStats, hideInaccurate: hideInaccurateProp }
 
   const { features, stats } = useMemo(() => {
     // Vista limpia solo para el TRAZO: positions (crudos) se deja intacto para
-    // slider/contador. La limpieza vive en cleanRoutePositions (pipeline único
-    // compartido con las flechas). Siempre vista limpia: sin modo crudo; solo
-    // se segmenta (gaps/teleports) para no unir con rectas lo que no debe
-    // unirse. Ruido (picos + ping-pong + rachas random-walk) siempre fuera con
-    // filtro activo; además se excluyen valid === false o accuracy > umbral, y
-    // las paradas LARGAS y quietas se colapsan a su mediana. Tras simplify
-    // (con piso mínimo SMOOTH_FLOOR_M) se aplica una pasada de Chaikin por
-    // chunk para línea limpia estilo Traccar original.
-    const {
-      points: working,
-      stats,
-      cuts,
-    } = cleanRoutePositions(positions, {
+    // slider/contador. La geometría canónica ordena por tiempo, limpia
+    // (fantasmas, duplicados, inexactos, paradas) y corta gaps/teleports.
+    const geometry = buildCanonicalRouteGeometry(positions, {
       hideInaccurate,
       accuracyThreshold,
     });
-
-    const speeds = working.map((p) => Number(p.speed)).filter(Number.isFinite);
-    const speedCapKnots = 65;
-    const minSpeed = speeds.length ? Math.max(0, Math.min(...speeds)) : 0;
-    const maxSpeed = speeds.length ? Math.min(Math.max(...speeds), speedCapKnots) : speedCapKnots;
-
-    let decimated = working;
-    if (working.length > DECIMATION_THRESHOLD) {
-      const tolerance = Math.max(toleranceForZoom(zoom), SMOOTH_FLOOR_M / 111320);
-      decimated = splitByGapAndTeleport(working, MAX_GAP_MS).flatMap((chunk) =>
-        smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)),
-      );
-    }
-
-    const features = [];
-    for (let i = 0; i < decimated.length - 1; i += 1) {
-      const current = decimated[i];
-      const next = decimated[i + 1];
-      // Corta gaps temporales y teleports (simplify puede crear un salto al
-      // quitar intermedios): nunca una recta sobre un salto imposible.
-      // También corta cuerdas que saltan sobre puntos ocultos (ver cuts de
-      // cleanRoutePositions): la recta cruzando cuadras no se dibuja.
-      if (shouldCut(current, next, MAX_GAP_MS) || (cuts && cuts.has(next))) {
-        continue;
-      }
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            toMapCoordinates(current.longitude, current.latitude),
-            toMapCoordinates(next.longitude, next.latitude),
-          ],
-        },
-        properties: {
-          color: reportColor || getSpeedColor(next.speed, minSpeed, maxSpeed),
-          width: mapLineWidth,
-          opacity: mapLineOpacity,
-        },
-      });
-    }
-    // shown es estable ante el zoom (pre-decimación): total - ocultos - colapsados.
-    return { features, stats };
-  }, [
-    positions,
-    zoom,
-    reportColor,
-    mapLineWidth,
-    mapLineOpacity,
-    hideInaccurate,
-    accuracyThreshold,
-  ]);
+    const { speedMin, speedMax } = geometry;
+    const features = lineSegmentsFor(geometry).map(({ a, b, speed }) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          toMapCoordinates(a.longitude, a.latitude),
+          toMapCoordinates(b.longitude, b.latitude),
+        ],
+      },
+      properties: {
+        color: reportColor || getSpeedColor(speed, speedMin, speedMax),
+        width: mapLineWidth,
+        opacity: mapLineOpacity,
+      },
+    }));
+    // shown es estable (pre-decimación): total - ocultos - colapsados.
+    return { features, stats: geometry.stats };
+  }, [positions, reportColor, mapLineWidth, mapLineOpacity, hideInaccurate, accuracyThreshold]);
 
   useEffect(() => {
     map.getSource(id)?.setData({

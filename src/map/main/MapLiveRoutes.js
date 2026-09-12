@@ -1,10 +1,16 @@
-import { useId, useEffect } from 'react';
+import { useId, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useTheme } from '@mui/material/styles';
 import { map } from '../core/MapView';
 import { useAttributePreference } from '../../common/util/preferences';
 import { toMapCoordinates } from '../core/mapUtil';
+import { buildCanonicalRouteGeometry, lineSegmentsFor } from '../util/canonicalRouteGeometry';
 
+// Líneas en vivo del WebSocket. El historial (pares [lon, lat] sin tiempo)
+// pasa por la MISMA geometría canónica del replay (limpieza de spikes y
+// cortes por teleport solo por distancia): el vivo y el replay nunca dibujan
+// rectas distintas sobre los mismos puntos. Sin flechas aquí (historiales
+// cortos; las flechas viven en el trail con la única implementación).
 const MapLiveRoutes = ({ deviceIds }) => {
   const id = useId();
 
@@ -59,22 +65,28 @@ const MapLiveRoutes = ({ deviceIds }) => {
     return () => {};
   }, [type, id]);
 
-  useEffect(() => {
-    if (type !== 'none') {
-      const visibleIds = deviceIds
-        .filter((id) => (type === 'selected' ? id === selectedDeviceId : true))
-        .filter((id) => history.hasOwnProperty(id))
-        .filter((id) => devices[id]);
-
-      map.getSource(id)?.setData({
-        type: 'FeatureCollection',
-        features: visibleIds.map((deviceId) => ({
+  const features = useMemo(() => {
+    if (type === 'none') {
+      return [];
+    }
+    const visibleIds = deviceIds
+      .filter((deviceId) => (type === 'selected' ? deviceId === selectedDeviceId : true))
+      .filter((deviceId) => history.hasOwnProperty(deviceId))
+      .filter((deviceId) => devices[deviceId]);
+    const out = [];
+    visibleIds.forEach((deviceId) => {
+      const geometry = buildCanonicalRouteGeometry(history[deviceId] || [], {
+        hideInaccurate: false,
+      });
+      lineSegmentsFor(geometry).forEach(({ a, b }) => {
+        out.push({
           type: 'Feature',
           geometry: {
             type: 'LineString',
-            coordinates: history[deviceId].map(([longitude, latitude]) =>
-              toMapCoordinates(longitude, latitude),
-            ),
+            coordinates: [
+              toMapCoordinates(a.longitude, a.latitude),
+              toMapCoordinates(b.longitude, b.latitude),
+            ],
           },
           properties: {
             color:
@@ -82,20 +94,20 @@ const MapLiveRoutes = ({ deviceIds }) => {
             width: mapLineWidth,
             opacity: mapLineOpacity,
           },
-        })),
+        });
+      });
+    });
+    return out;
+  }, [theme, type, devices, selectedDeviceId, history, deviceIds, mapLineOpacity, mapLineWidth]);
+
+  useEffect(() => {
+    if (type !== 'none') {
+      map.getSource(id)?.setData({
+        type: 'FeatureCollection',
+        features,
       });
     }
-  }, [
-    theme,
-    type,
-    devices,
-    selectedDeviceId,
-    history,
-    deviceIds,
-    id,
-    mapLineOpacity,
-    mapLineWidth,
-  ]);
+  }, [type, features, id]);
 
   return null;
 };
