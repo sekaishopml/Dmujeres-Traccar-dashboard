@@ -9,6 +9,7 @@ import {
   generateRouteArrows,
   spacingForZoom,
 } from './util/canonicalRouteGeometry';
+import { isInStopSpans } from './util/replayAudit';
 import { useAttributePreference } from '../common/util/preferences';
 
 /** Confianza del snap: más lejos = zona sin vía, la flecha queda en su sitio. */
@@ -30,6 +31,9 @@ const MapRoutePoints = ({
   showSpeedControl,
   hideInaccurate: hideInaccurateProp,
   matchSegments,
+  // Spans de parada [{from, to}] sobre `positions`: esas flechas NO hacen snap
+  // a la calle (quedarían "fuera del lugar"); quedan en su sitio honesto.
+  rawSpans,
 }) => {
   const id = useId();
 
@@ -178,9 +182,12 @@ const MapRoutePoints = ({
       // Cada flecha referencia su fix real más cercano (click/color/velocidad).
       // En vivo (pares sin metadatos) no hay id: la flecha no es clicable.
       const position = arrow.live ? null : arrow.refPosition;
+      const rawIndex =
+        position?.id !== undefined && byId.has(position.id) ? byId.get(position.id) : -1;
+      const inStop = isInStopSpans(rawIndex, rawSpans);
       let display = { latitude: arrow.latitude, longitude: arrow.longitude };
       let rotation = arrow.rotation;
-      if (useMatched && matched.length) {
+      if (!inStop && useMatched && matched.length) {
         const snapped = snapMatched(arrow);
         if (snapped && snapped.distM <= SNAP_TRUST_M) {
           display = { latitude: snapped.vertex.latitude, longitude: snapped.vertex.longitude };
@@ -194,7 +201,7 @@ const MapRoutePoints = ({
           coordinates: toMapCoordinates(display.longitude, display.latitude),
         },
         properties: {
-          index: position?.id !== undefined && byId.has(position.id) ? byId.get(position.id) : 0,
+          index: rawIndex >= 0 ? rawIndex : 0,
           id: position?.id,
           rotation,
           // Misma escala de color que la línea (mín/máx canónicos): igual
@@ -203,7 +210,15 @@ const MapRoutePoints = ({
         },
       };
     });
-  }, [positions, zoom, hideInaccuratePref, hideInaccurateProp, accuracyThreshold, matchSegments]);
+  }, [
+    positions,
+    zoom,
+    hideInaccuratePref,
+    hideInaccurateProp,
+    accuracyThreshold,
+    matchSegments,
+    rawSpans,
+  ]);
 
   useEffect(() => {
     map.getSource(id)?.setData({

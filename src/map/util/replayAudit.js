@@ -16,6 +16,7 @@ import {
   isTeleport,
   MAX_GAP_MS,
   SAME_PLACE_M,
+  STOP_MAX_SPEED_KN,
   STOP_MIN_DURATION_MS,
   STOP_RADIUS_M,
 } from './pathDecimation.js';
@@ -86,6 +87,11 @@ export function medianFinite(values) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
+/** Instante (ms) de un punto o NaN (local: fixTimeOf es público y equivalente). */
+function fixTimeMs(position) {
+  return Date.parse(position.fixTime || position.deviceTime || position.serverTime);
+}
+
 /**
  * Paradas enriquecidas sobre detectStops (misma detección, sin cambiar
  * umbrales): cada parada conserva TODOS sus fixes originales (pointCount) y
@@ -104,6 +110,7 @@ export function analyzeStops(
   options,
   { radiusM = STOP_RADIUS_M, minDurationMs = STOP_MIN_DURATION_MS } = {},
 ) {
+  const maxSpeedKn = options?.maxSpeedKn ?? STOP_MAX_SPEED_KN;
   const stops = detectStops(positions, options);
   const enriched = [];
   for (const stop of stops) {
@@ -119,6 +126,25 @@ export function analyzeStops(
     if (end - from < 2) {
       from = stop.index;
       end = stop.index + stop.pointCount;
+    }
+    // Extensión hacia atrás: la tolerancia de outliers sacrifica los primeros
+    // fixes quietos a la racha previa (no parada). Se recuperan si son lentos,
+    // están en el lugar y son temporalmente contiguos; el punto en marcha
+    // previo frena la extensión (la llegada sigue siendo exacta).
+    while (from > 0) {
+      const prev = positions[from - 1];
+      const speed = Number(prev.speed);
+      if (Number.isFinite(speed) && speed >= maxSpeedKn) {
+        break;
+      }
+      if (haversineMeters(prev, center) > radiusM) {
+        break;
+      }
+      const gap = fixTimeMs(positions[from]) - fixTimeMs(prev);
+      if (!Number.isFinite(gap) || gap <= 0 || gap > MAX_GAP_MS) {
+        break;
+      }
+      from -= 1;
     }
     const span = positions.slice(from, end);
     const arrival = span[0].fixTime || span[0].deviceTime || span[0].serverTime;
@@ -254,6 +280,99 @@ export function clockAudit(positions) {
     }
   });
   return { maxSkewMs, skewedCount, checkedCount };
+}
+
+/**
+ * Particiona posiciones crudas en tramos en marcha y paradas (spans de stops
+ * sobre el array crudo). Los tramos en marcha van al map-matcher; las paradas
+ * se dibujan honestas (los fixes quietos indoor casados a la calle vecina es
+ * lo que mostraba la ruta "como si estuviera fuera del lugar").
+ * Cubre [0, positions.length) sin huecos ni solapes; no toca el array.
+ * Cada pieza: { kind: 'move' | 'stop', from, to } con to exclusivo.
+ */
+export function splitMovingAndStops(positions, stops) {
+  const spans = (stops || [])
+    .map((stop) => ({ from: stop.index, to: stop.index + stop.pointCount }))
+    .filter((span) => Number.isInteger(span.from) && span.to > span.from)
+    .sort((a, b) => a.from - b.from);
+  const merged = [];
+  for (const span of spans) {
+    const last = merged[merged.length - 1];
+    if (last && span.from <= last.to) {
+      last.to = Math.max(last.to, span.to);
+    } else {
+      merged.push({ from: span.from, to: span.to });
+    }
+  }
+  const pieces = [];
+  let cursor = 0;
+  for (const span of merged) {
+    const from = Math.max(0, Math.min(span.from, positions.length));
+    const to = Math.max(0, Math.min(span.to, positions.length));
+    if (cursor < from) {
+      pieces.push({ kind: 'move', from: cursor, to: from });
+    }
+    if (from < to) {
+      pieces.push({ kind: 'stop', from, to });
+    }
+    cursor = Math.max(cursor, to);
+  }
+  if (cursor < positions.length) {
+    pieces.push({ kind: 'move', from: cursor, to: positions.length });
+  }
+  return pieces.filter((piece) => piece.to > piece.from);
+}
+
+/** true si el índice crudo cae dentro de algún span de parada [from, to). */
+export function isInStopSpans(rawIndex, stopSpans) {
+  if (!Number.isInteger(rawIndex) || !Array.isArray(stopSpans)) {
+    return false;
+  }
+  return stopSpans.some((span) => rawIndex >= span.from && rawIndex < span.to);
+}
+
+/** Fix crudo → [lon, lat, kn] para tracks honestos (paradas y conectores). */
+export function toTrackPoint(position) {
+  const speed = Number(position.speed);
+  return [position.longitude, position.latitude, Number.isFinite(speed) ? speed : null];
+}
+
+/**
+ * Conectores honestos entre piezas consecutivas (último fix de una al primero
+ * de la siguiente): la ruta sigue continua sin inventar geometría.
+ */
+export function linkTracksFor(pieces, positions) {
+  const links = [];
+  for (let i = 0; i + 1 < pieces.length; i += 1) {
+    const a = positions[pieces[i].to - 1];
+    const b = positions[pieces[i + 1].from];
+    if (a && b) {
+      links.push([toTrackPoint(a), toTrackPoint(b)]);
+    }
+  }
+  return links;
+}
+
+/**
+ * Línea unificada del replay para MapRouteMatch: tramos en marcha con su
+ * segmento casado (o fallback honesto si ese tramo no casó / no hubo match)
+ * + paradas y conectores siempre honestos. `serverSegments` va alineado con
+ * `moveTracks` (contrato del endpoint); lo demás nunca se envía al matcher.
+ * Devuelve { segments, tracks } alineados para dibujo honesto garantizado.
+ */
+export function buildReplayLine({ moveTracks, serverSegments, stopRaws, links }) {
+  const segments = [];
+  const tracks = [];
+  (moveTracks || []).forEach((track, i) => {
+    const seg = Array.isArray(serverSegments) ? serverSegments[i] : null;
+    segments.push(Array.isArray(seg) && seg.length >= 2 ? seg : null);
+    tracks.push(track);
+  });
+  [...(stopRaws || []), ...(links || [])].forEach((raw) => {
+    segments.push(null);
+    tracks.push(raw);
+  });
+  return { segments, tracks };
 }
 
 /**

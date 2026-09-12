@@ -6,13 +6,18 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   analyzeStops,
+  buildReplayLine,
   clockAudit,
   FLAG,
   flagAnomalies,
   integritySummary,
+  isInStopSpans,
   isOfflineSynced,
+  linkTracksFor,
   offlinePeriods,
+  splitMovingAndStops,
   syncDelayMs,
+  toTrackPoint,
 } from './replayAudit.js';
 
 const T0 = Date.parse('2026-03-10T08:00:00Z');
@@ -295,6 +300,153 @@ describe('integridad', () => {
     assert.equal(summary.stopCount, 1);
     assert.equal(summary.offlineCount, 0);
     assert.equal(summary.maxSkewMs, 0);
+  });
+});
+
+describe('partición marcha/parada para el matcher', () => {
+  // Ruta: marcha 0-40 s, parada 60-450 s (40 fixes), marcha desde 3600 s.
+  const pts = (() => {
+    const move1 = leg(-2.2, -79.9, 400, 10, 10, { idStart: 1, seq: 1 });
+    const stop = dwell(-2.2, -79.88, 40, 10, 60 * 1000, 100);
+    stop.forEach((p, i) => {
+      p.sequence = 100 + i;
+      p.messageId = `dmj-test-${100 + i}`;
+    });
+    const move2 = leg(-2.2, -79.88 + 150 / 111320, 400, 10, 10, {
+      idStart: 500,
+      startDt: 3600 * 1000,
+    });
+    move1.forEach((p, i) => {
+      p.sequence = 1 + i;
+      p.messageId = `dmj-test-${1 + i}`;
+    });
+    move2.forEach((p, i) => {
+      p.sequence = 500 + i;
+      p.messageId = `dmj-test-${500 + i}`;
+    });
+    return [...move1, ...stop, ...move2];
+  })();
+
+  it('split cubre todo sin huecos ni solapes', () => {
+    const pieces = splitMovingAndStops(pts, analyzeStops(pts));
+    assert.equal(pieces.map((p) => p.kind).join(','), 'move,stop,move');
+    assert.equal(pieces[0].from, 0);
+    assert.equal(pieces[pieces.length - 1].to, pts.length);
+    for (let i = 1; i < pieces.length; i += 1) {
+      assert.equal(pieces[i].from, pieces[i - 1].to);
+    }
+  });
+
+  it('sin paradas: un solo tramo en marcha', () => {
+    const moving = leg(-2.2, -79.9, 1000, 15, 10, { idStart: 1 });
+    assert.deepEqual(splitMovingAndStops(moving, []), [
+      { kind: 'move', from: 0, to: moving.length },
+    ]);
+    assert.deepEqual(splitMovingAndStops([], []), []);
+  });
+
+  it('parada total: un solo tramo parado', () => {
+    const stop = dwell(-2.2, -79.88, 40, 10, 0, 1);
+    const pieces = splitMovingAndStops(stop, analyzeStops(stop));
+    assert.equal(pieces.length, 1);
+    assert.equal(pieces[0].kind, 'stop');
+  });
+
+  it('isInStopSpans respeta bordes [from, to)', () => {
+    const spans = [{ from: 5, to: 45 }];
+    assert.equal(isInStopSpans(4, spans), false);
+    assert.equal(isInStopSpans(5, spans), true);
+    assert.equal(isInStopSpans(44, spans), true);
+    assert.equal(isInStopSpans(45, spans), false);
+    assert.equal(isInStopSpans(0, null), false);
+  });
+
+  it('conectores unen piezas consecutivas con fixes reales', () => {
+    const pieces = splitMovingAndStops(pts, analyzeStops(pts));
+    const links = linkTracksFor(pieces, pts);
+    assert.equal(links.length, pieces.length - 1);
+    for (const link of links) {
+      assert.equal(link.length, 2);
+      assert.ok(link.every((p) => Array.isArray(p) && p.length === 3));
+    }
+    // El conector marcha→parada une el último fix en marcha con el primero quieto.
+    const first = links[0];
+    assert.equal(first[1][0], pts[pieces[1].from].longitude);
+  });
+
+  it('línea unificada: match en marcha, honesto en parada, alineada', () => {
+    const pieces = splitMovingAndStops(pts, analyzeStops(pts));
+    const moveTracks = [
+      [
+        [1, 2],
+        [3, 4],
+      ],
+    ];
+    const serverSegments = [
+      [
+        [10, 20],
+        [30, 40],
+      ],
+    ];
+    const stopRaws = pieces
+      .filter((p) => p.kind === 'stop')
+      .map((p) => pts.slice(p.from, p.to).map(toTrackPoint));
+    const { segments, tracks } = buildReplayLine({
+      moveTracks,
+      serverSegments,
+      stopRaws,
+      links: linkTracksFor(pieces, pts),
+    });
+    assert.equal(segments.length, tracks.length);
+    // Marcha casada + paradas/links honestos (null).
+    assert.deepEqual(segments[0], [
+      [10, 20],
+      [30, 40],
+    ]);
+    assert.ok(segments.slice(1).every((s) => s === null));
+    // La parada viaja con sus fixes reales (indoor visible, no calle).
+    const stopTrack = tracks[1];
+    assert.ok(stopTrack.length >= 40);
+    assert.equal(stopTrack[0][0], pts[pieces[1].from].longitude);
+  });
+
+  it('sin match del servidor: todo honesto, nada vacío', () => {
+    const { segments, tracks } = buildReplayLine({
+      moveTracks: [
+        [
+          [1, 2],
+          [3, 4],
+        ],
+      ],
+      serverSegments: null,
+      stopRaws: [
+        [
+          [5, 6],
+          [7, 8],
+        ],
+      ],
+      links: [],
+    });
+    assert.equal(segments.length, 2);
+    assert.ok(segments.every((s) => s === null));
+    assert.deepEqual(tracks[0], [
+      [1, 2],
+      [3, 4],
+    ]);
+  });
+
+  it('inmutable: partición y línea no tocan el RAW', () => {
+    const before = snapshot(pts);
+    const pieces = splitMovingAndStops(pts, analyzeStops(pts));
+    buildReplayLine({
+      moveTracks: [[[0, 0]]],
+      serverSegments: null,
+      stopRaws: pieces
+        .filter((p) => p.kind === 'stop')
+        .map((p) => pts.slice(p.from, p.to).map(toTrackPoint)),
+      links: linkTracksFor(pieces, pts),
+    });
+    assert.equal(snapshot(pts), before);
   });
 });
 
