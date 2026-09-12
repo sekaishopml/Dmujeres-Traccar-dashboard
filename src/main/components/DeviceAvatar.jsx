@@ -17,6 +17,9 @@ const useStyles = makeStyles()((theme) => ({
   avatarNoSignal: {
     backgroundColor: theme.palette.warning.main,
   },
+  avatarStopped: {
+    backgroundColor: theme.palette.info.main,
+  },
   avatarNeutral: {
     backgroundColor: theme.palette.neutral.main,
   },
@@ -24,7 +27,7 @@ const useStyles = makeStyles()((theme) => ({
 
 /**
  * Avatar del dispositivo coloreado por el estado visible
- * (displayColor: warning / success / neutral).
+ * (displayColor: warning / success / info / neutral).
  */
 const DeviceAvatar = ({ device, displayColor }) => {
   const { classes } = useStyles();
@@ -36,6 +39,8 @@ const DeviceAvatar = ({ device, displayColor }) => {
         return classes.avatarNoSignal;
       case 'error':
         return classes.avatarOffline;
+      case 'info':
+        return classes.avatarStopped;
       default:
         return classes.avatarNeutral;
     }

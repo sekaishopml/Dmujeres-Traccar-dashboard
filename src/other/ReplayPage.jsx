@@ -174,29 +174,6 @@ const ReplayPage = () => {
   const [follow, setFollow] = useState(mapFollowPref);
   // Pestaña del panel lateral: 0 = Paradas, 1 = Detalles del punto actual.
   const [panelTab, setPanelTab] = useState(0);
-  // Auditoría del replay (solo lectura, nunca toca `positions`): paradas
-  // enriquecidas (mismos índices que detectStops + precisión mediana),
-  // banderas por fix, periodos sin cobertura, reloj e integridad.
-  const audit = useMemo(() => {
-    const enriched = analyzeStops(positions);
-    const flags = flagAnomalies(positions, { accuracyThreshold });
-    const offline = offlinePeriods(positions);
-    const clock = clockAudit(positions);
-    return {
-      stops: enriched,
-      flags,
-      offline,
-      clock,
-      integrity: integritySummary({
-        positions,
-        stops: enriched,
-        offlinePeriods: offline,
-        flags,
-        clock,
-      }),
-    };
-  }, [positions, accuracyThreshold]);
-  const { stops } = audit;
   // Velocidad en Detalles: reportada (Doppler del equipo) y derivada
   // (geometría ±2 fixes) por separado. El Doppler miente en 0 en marcha
   // (medido: 83/185 fixes en 0 moviéndose); la derivada lo respalda.
@@ -226,41 +203,35 @@ const ReplayPage = () => {
       derivedKmh: Number.isFinite(derivedRaw) && derivedRaw < 2 ? 0 : derivedRaw,
     };
   }, [positions, index]);
-  // Banderas de auditoría del fix actual (nombres localizados, en orden).
-  const flagLabels = useMemo(() => {
-    const list = (index < audit.flags.length ? audit.flags[index] : []) || [];
-    const names = {
-      [FLAG.TELEPORT]: t('replayFlagTeleport'),
-      [FLAG.GAP]: t('replayFlagGap'),
-      [FLAG.SPEED]: t('replayFlagSpeed'),
-      [FLAG.TIME]: t('replayFlagTime'),
-      [FLAG.DUPLICATE]: t('replayFlagDuplicate'),
-      [FLAG.LOW_ACCURACY]: t('replayFlagLowAccuracy'),
-      [FLAG.SYNCED]: t('replayFlagSynced'),
-      [FLAG.CLOCK]: t('replayFlagClock'),
-    };
-    return list.map((code) => names[code] || code);
-  }, [audit, index, t]);
-  // Periodo sin cobertura que termina en el fix actual (si lo hay).
-  const coverageGap = useMemo(
-    () => audit.offline.find((period) => period.toIndex === index) || null,
-    [audit, index],
-  );
-  // Retraso de sincronización del fix actual, ya formateado (vacío si fresco).
-  const syncDelayCaption = useMemo(() => {
-    if (index >= positions.length) {
-      return '';
-    }
-    const delay = syncDelayMs(positions[index]);
-    if (Number.isFinite(delay) && delay > 60000) {
-      return ` · ${t('replayAuditSyncDelay')}: ${formatStopDuration(delay)}`;
-    }
-    return '';
-  }, [positions, index, t]);
   const accuracyThresholdPref = useAttributePreference('web.accuracyThreshold', 250);
   const accuracyThreshold = Number.isFinite(Number(accuracyThresholdPref))
     ? Number(accuracyThresholdPref)
     : 250;
+  // Auditoría del replay (solo lectura, nunca toca `positions`): paradas
+  // enriquecidas (mismos índices que detectStops + precisión mediana),
+  // banderas por fix, periodos sin cobertura, reloj e integridad.
+  // Va DESPUÉS de `accuracyThreshold` a propósito (TDZ: usar un const antes
+  // de declararlo en el cuerpo del componente rompe el render).
+  const audit = useMemo(() => {
+    const enriched = analyzeStops(positions);
+    const flags = flagAnomalies(positions, { accuracyThreshold });
+    const offline = offlinePeriods(positions);
+    const clock = clockAudit(positions);
+    return {
+      stops: enriched,
+      flags,
+      offline,
+      clock,
+      integrity: integritySummary({
+        positions,
+        stops: enriched,
+        offlinePeriods: offline,
+        flags,
+        clock,
+      }),
+    };
+  }, [positions, accuracyThreshold]);
+  const { stops } = audit;
   // Trazo pegado a carretera: segmentos matcheados por el servidor.
   // Si no hay match (matcher caído o sin vías), la línea honesta queda visible.
   const [matchSegments, setMatchSegments] = useState(null);
@@ -583,6 +554,39 @@ const ReplayPage = () => {
     const minutes = totalMinutes % 60;
     return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
   };
+
+  // Banderas de auditoría del fix actual (nombres localizados, en orden).
+  // Después de `audit` y `formatStopDuration` a propósito (TDZ).
+  const flagLabels = useMemo(() => {
+    const list = (index < audit.flags.length ? audit.flags[index] : []) || [];
+    const names = {
+      [FLAG.TELEPORT]: t('replayFlagTeleport'),
+      [FLAG.GAP]: t('replayFlagGap'),
+      [FLAG.SPEED]: t('replayFlagSpeed'),
+      [FLAG.TIME]: t('replayFlagTime'),
+      [FLAG.DUPLICATE]: t('replayFlagDuplicate'),
+      [FLAG.LOW_ACCURACY]: t('replayFlagLowAccuracy'),
+      [FLAG.SYNCED]: t('replayFlagSynced'),
+      [FLAG.CLOCK]: t('replayFlagClock'),
+    };
+    return list.map((code) => names[code] || code);
+  }, [audit, index, t]);
+  // Periodo sin cobertura que termina en el fix actual (si lo hay).
+  const coverageGap = useMemo(
+    () => audit.offline.find((period) => period.toIndex === index) || null,
+    [audit, index],
+  );
+  // Retraso de sincronización del fix actual, ya formateado (vacío si fresco).
+  const syncDelayCaption = useMemo(() => {
+    if (index >= positions.length) {
+      return '';
+    }
+    const delay = syncDelayMs(positions[index]);
+    if (Number.isFinite(delay) && delay > 60000) {
+      return ` · ${t('replayAuditSyncDelay')}: ${formatStopDuration(delay)}`;
+    }
+    return '';
+  }, [positions, index, t]);
 
   return (
     <div className={classes.root}>

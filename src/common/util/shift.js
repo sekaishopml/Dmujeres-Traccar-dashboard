@@ -76,28 +76,32 @@ export const getDeviceStateLabelKey = (deviceState) => {
 };
 
 // Chip MUI: warning = naranja (SIN SEÑAL), success = verde (EN LINEA),
-// default = gris (DESHABILITADO y DETENIDO).
+// info = azul (DETENIDO), default = gris (DESHABILITADO). Cada estado tiene
+// su color: antes DETENIDO compartía el verde con EN LINEA y la letra
+// cambiaba pero el color no.
 export const getDeviceStateMuiColor = (deviceState) => {
   switch (deviceState) {
     case DEVICE_NO_SIGNAL:
       return 'warning';
     case DEVICE_ONLINE:
-    case DEVICE_STOPPED:
       return 'success';
+    case DEVICE_STOPPED:
+      return 'info';
     default:
       return 'default';
   }
 };
 
-// Avatar: naranja (SIN SEÑAL), verde (EN LINEA y DETENIDO) o neutral
+// Avatar: naranja (SIN SEÑAL), verde (EN LINEA), azul (DETENIDO) o neutral
 // (DESHABILITADO).
 export const getDeviceStateDisplayColor = (deviceState) => {
   switch (deviceState) {
     case DEVICE_NO_SIGNAL:
       return 'warning';
     case DEVICE_ONLINE:
-    case DEVICE_STOPPED:
       return 'success';
+    case DEVICE_STOPPED:
+      return 'info';
     default:
       return 'neutral';
   }
