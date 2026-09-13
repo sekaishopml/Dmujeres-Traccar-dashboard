@@ -1,6 +1,6 @@
 {
-  "version": "1.0.90",
-  "versionCode": 90,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.90/DMujeres-Tracking-1.0.90.apk",
-  "notes": "Alertas silenciosas para GPS sin señal y pendientes sin confirmación (solo queda la notificación persistente)"
+  "version": "1.0.91",
+  "versionCode": 91,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.91/DMujeres-Tracking-1.0.91.apk",
+  "notes": "Widget 2x1: estado grande + botón píldora bien colocados en una fila"
 }
