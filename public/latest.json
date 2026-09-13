@@ -1,6 +1,6 @@
 {
-  "version": "1.0.93",
-  "versionCode": 93,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.93/DMujeres-Tracking-1.0.93.apk",
-  "notes": "Prioridad 1: tiempo de fix unificado, LocationQuality + confidence, sessionId/bootId, microbatch online (1.2 s), servidor separa lastPresenceAt/lastPositionAt"
+  "version": "1.0.94",
+  "versionCode": 94,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.94/DMujeres-Tracking-1.0.94.apk",
+  "notes": "Robustez P2: errores HTTP terminales ya no reintentan infinito, MQTT thread-safe anti-cuña, replay sin saturar telemetría, sweeper server, drain encadenado"
 }
