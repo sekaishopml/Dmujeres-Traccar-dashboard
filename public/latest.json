@@ -1,6 +1,6 @@
 {
-  "version": "1.0.94",
-  "versionCode": 94,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.94/DMujeres-Tracking-1.0.94.apk",
-  "notes": "Robustez P2: errores HTTP terminales ya no reintentan infinito, MQTT thread-safe anti-cuña, replay sin saturar telemetría, sweeper server, drain encadenado"
+  "version": "1.0.95",
+  "versionCode": 95,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.95/DMujeres-Tracking-1.0.95.apk",
+  "notes": "Sin notificaciones de 'Todo en orden' + robustez P2 (1.0.94)"
 }
