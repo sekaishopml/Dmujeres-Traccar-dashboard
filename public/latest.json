@@ -1,6 +1,6 @@
 {
-  "version": "1.0.89",
-  "versionCode": 89,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.89/DMujeres-Tracking-1.0.89.apk",
-  "notes": "Sin notificaciones de pendientes; skeleton fiel; recuadros responsive; transición lenta verde→rojo; duración compacta"
+  "version": "1.0.90",
+  "versionCode": 90,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.90/DMujeres-Tracking-1.0.90.apk",
+  "notes": "Alertas silenciosas para GPS sin señal y pendientes sin confirmación (solo queda la notificación persistente)"
 }
