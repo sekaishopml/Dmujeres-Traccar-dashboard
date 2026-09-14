@@ -1,6 +1,6 @@
 {
-  "version": "1.0.95",
-  "versionCode": 95,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.95/DMujeres-Tracking-1.0.95.apk",
-  "notes": "Sin notificaciones de 'Todo en orden' + robustez P2 (1.0.94)"
+  "version": "1.0.96",
+  "versionCode": 96,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.96/DMujeres-Tracking-1.0.96.apk",
+  "notes": "Guardián anti-OEM: alarma cada 15 min reviva el servicio con jornada activa (caso ruta del 13/sep)"
 }
