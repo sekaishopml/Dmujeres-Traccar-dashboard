@@ -1,6 +1,6 @@
 {
-  "version": "1.0.99",
-  "versionCode": 99,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.99/DMujeres-Tracking-1.0.99.apk",
-  "notes": "Guía ZTE con dos accesos directos: Batería/Gestión inteligente y página de la app (pausar actividad)"
+  "version": "1.0.100",
+  "versionCode": 100,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.100/DMujeres-Tracking-1.0.100.apk",
+  "notes": "Calidad de fix clasificada (en vivo y en replay), acelerómetro auxiliar, diagnóstico por capa"
 }
