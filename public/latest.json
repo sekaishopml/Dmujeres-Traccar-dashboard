@@ -1,6 +1,6 @@
 {
-  "version": "1.0.100",
-  "versionCode": 100,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.100/DMujeres-Tracking-1.0.100.apk",
-  "notes": "Calidad de fix clasificada (en vivo y en replay), acelerómetro auxiliar, diagnóstico por capa"
+  "version": "1.0.101",
+  "versionCode": 101,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.101/DMujeres-Tracking-1.0.101.apk",
+  "notes": "Observabilidad P4: diagnóstico de recuperación y capacidades del dispositivo"
 }
