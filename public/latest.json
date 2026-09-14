@@ -1,6 +1,6 @@
 {
-  "version": "1.0.98",
-  "versionCode": 98,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.98/DMujeres-Tracking-1.0.98.apk",
-  "notes": "Onboarding: paso 'Protección de ZTE' (control de IA + inicio automático), persistido y en reparación"
+  "version": "1.0.99",
+  "versionCode": 99,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.99/DMujeres-Tracking-1.0.99.apk",
+  "notes": "Guía ZTE con dos accesos directos: Batería/Gestión inteligente y página de la app (pausar actividad)"
 }
