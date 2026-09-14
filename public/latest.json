@@ -1,6 +1,6 @@
 {
-  "version": "1.0.97",
-  "versionCode": 97,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.97/DMujeres-Tracking-1.0.97.apk",
-  "notes": "Onboarding: paso vendor para ZTE (control de IA + inicio automático) solo cuando aplica"
+  "version": "1.0.98",
+  "versionCode": 98,
+  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.98/DMujeres-Tracking-1.0.98.apk",
+  "notes": "Onboarding: paso 'Protección de ZTE' (control de IA + inicio automático), persistido y en reparación"
 }
