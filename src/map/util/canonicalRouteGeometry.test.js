@@ -90,10 +90,14 @@ describe('spacingForZoom', () => {
   });
 });
 
-describe('densidades GPS (1s / 10s / 30s): mismas flechas', () => {
+describe('densidades GPS (1s / 2s / 5s): mismas flechas', () => {
   const spacing = 50;
-  const geoms = [1, 10, 30].map((dt) => {
-    const pts = straight(10000, 25, dt);
+  // Velocidad 12 m/s: todas las patas (≤ 120 m, dt ≤ 5 s) quedan bajo el gate
+  // ARROW_MAX_LEG (patas mayores ya no interpolan: ver gates de continuidad).
+  // 9960 m es divisible por los tres pasos (12/24/60): las tres rutas terminan
+  // en el mismo fix y la flecha de cierre coincide entre densidades.
+  const geoms = [1, 2, 5].map((dt) => {
+    const pts = straight(9960, 12, dt);
     return { dt, pts, g: buildCanonicalRouteGeometry(pts, { hideInaccurate: true }) };
   });
 
@@ -104,10 +108,10 @@ describe('densidades GPS (1s / 10s / 30s): mismas flechas', () => {
     const counts = geoms.map(
       ({ g }) => generateRouteArrows(g, { spacingMeters: spacing }).arrows.length,
     );
-    assert.deepEqual(counts, [200, 200, 195]);
+    assert.deepEqual(counts, [199, 199, 199]);
   });
 
-  it('flechas 10s idénticas a 1s; 30s a <20 m', () => {
+  it('flechas 2s idénticas a 1s; 5s a <20 m', () => {
     const base = generateRouteArrows(geoms[0].g, { spacingMeters: spacing }).arrows;
     [
       [1, 0.01],
@@ -135,9 +139,10 @@ describe('densidades GPS (1s / 10s / 30s): mismas flechas', () => {
 });
 
 describe('corta-densa vs larga-dispersa', () => {
-  it('800 m con 400 fixes y 12 km con 16 fixes: ambas uniformes', () => {
-    const short = straight(800, 10, 2); // 400 fixes
-    const long = straight(12000, 25, 30); // ~16 fixes, patas de 750 m
+  it('800 m con 41 fixes y 12 km con 101 fixes: ambas uniformes', () => {
+    const short = straight(800, 10, 2); // 41 fixes, patas de 20 m
+    // 12 m/s con dt 10 s: patas de 120 m, bajo el gate ARROW_MAX_LEG.
+    const long = straight(12000, 12, 10); // 101 fixes, patas de 120 m
     const gs = buildCanonicalRouteGeometry(short, { hideInaccurate: true });
     const gl = buildCanonicalRouteGeometry(long, { hideInaccurate: true });
     const as = generateRouteArrows(gs, { spacingMeters: 50 }).arrows;
@@ -237,8 +242,9 @@ describe('línea y flechas: exactamente la misma ruta', () => {
   });
 
   it('el rumbo sale de la geometría, no de course', () => {
-    // Ruta al este (rumbo 90) con course reportado cruzado (270).
-    const pts = straight(2000, 20, 10).map((p) => ({ ...p, course: 270 }));
+    // Ruta al este (rumbo 90) con course reportado cruzado (270). Velocidad
+    // 12 m/s: patas de 120 m, bajo el gate ARROW_MAX_LEG (flechas interpoladas).
+    const pts = straight(2000, 12, 10).map((p) => ({ ...p, course: 270 }));
     const g = buildCanonicalRouteGeometry(pts, { hideInaccurate: true });
     const { arrows } = generateRouteArrows(g, { spacingMeters: 50 });
     for (const arrow of arrows) {
@@ -275,7 +281,9 @@ describe('casos borde', () => {
   });
 
   it('guarda MAX_ARROWS relaja espaciado sin muestrear por índice', () => {
-    const pts = straight(83000, 25, 10);
+    // Velocidad 12 m/s: patas de 120 m bajo el gate ARROW_MAX_LEG, así la
+    // guarda sí relaja el espaciado (las patas gated no generan flechas).
+    const pts = straight(83000, 12, 10);
     const g = buildCanonicalRouteGeometry(pts, { hideInaccurate: true });
     const { arrows, spacingMeters } = generateRouteArrows(g, { spacingMeters: 20 });
     assert.ok(arrows.length <= MAX_ARROWS, `flechas ${arrows.length}`);

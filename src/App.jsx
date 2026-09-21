@@ -9,6 +9,7 @@ import { useCatch, useAsyncTask } from './reactHelper';
 import { sessionActions } from './store';
 import UpdateController from './UpdateController';
 import MotionController from './main/MotionController';
+import StateNotifications from './main/components/StateNotifications';
 import TermsDialog from './common/components/TermsDialog';
 import Loader from './common/components/Loader';
 import fetchOrThrow from './common/util/fetchOrThrow';
@@ -78,6 +79,7 @@ const App = () => {
       <CachingController />
       <UpdateController />
       <MotionController />
+      <StateNotifications />
       <div className={classes.page}>
         <Outlet />
       </div>

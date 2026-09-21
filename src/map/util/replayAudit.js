@@ -16,6 +16,7 @@ import {
   isTeleport,
   MAX_GAP_MS,
   SAME_PLACE_M,
+  shouldCut,
   STOP_MAX_SPEED_KN,
   STOP_MIN_DURATION_MS,
   STOP_RADIUS_M,
@@ -68,9 +69,24 @@ export function fixAgeSecOf(position) {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
 }
 
-/** Retraso de sincronización (ms): llegada − fix. NaN si falta algún extremo. */
+/** Llegada al servidor (ms) según `serverTime` (misma base serializada que
+ * fixTime: el offset estructural entre bases CANCELA al restar — B-2). */
+export function serverTimeMs(position) {
+  const raw = position.serverTime;
+  const ms = Date.parse(raw === undefined || raw === null || raw === '' ? '' : raw);
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
+/** Retraso de sincronización (ms): llegada − fix. NaN si falta algún extremo.
+ * B-2: se usa `serverTime − fixTime` (misma base tc_*). El `serverReceivedAt`
+ * (ISO-8601 UTC) NO se mezcla con `fixTime` (hora local serializada con Z):
+ * esa mezcla sumaba un offset estructural (+5 h) a todos los fixes. */
 export function syncDelayMs(position) {
   const fix = fixTimeOf(position);
+  const srv = serverTimeMs(position);
+  if (Number.isFinite(fix) && Number.isFinite(srv)) {
+    return srv - fix;
+  }
   const received = serverReceivedMs(position);
   if (!Number.isFinite(fix) || !Number.isFinite(received)) {
     return NaN;
@@ -340,13 +356,17 @@ export function toTrackPoint(position) {
 /**
  * Conectores honestos entre piezas consecutivas (último fix de una al primero
  * de la siguiente): la ruta sigue continua sin inventar geometría.
+ * B-1 (R3): el conector respeta `shouldCut` — si la pieza anterior y la
+ * siguiente están separadas por un hueco/teleport, NO se dibuja la recta
+ * (decisión del operador: los tramos sin evidencia no se unen). Reproducían
+ * hasta 2941 m (joseph) y 1957 m (macias) sobre huecos reales.
  */
 export function linkTracksFor(pieces, positions) {
   const links = [];
   for (let i = 0; i + 1 < pieces.length; i += 1) {
     const a = positions[pieces[i].to - 1];
     const b = positions[pieces[i + 1].from];
-    if (a && b) {
+    if (a && b && !shouldCut(a, b)) {
       links.push([toTrackPoint(a), toTrackPoint(b)]);
     }
   }

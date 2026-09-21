@@ -48,7 +48,14 @@ import {
   splitMovingAndStops,
   syncDelayMs,
 } from '../map/util/replayAudit';
+import {
+  MOTION_V2_COLORS,
+  buildMotionV2Segments,
+  formatMotionV2Duration,
+  motionV2StateOf,
+} from '../map/util/motionV2';
 import { formatSpeed, formatTime } from '../common/util/formatter';
+import { qualityColor, speedSourceLabel } from './qualityLabel';
 import ReportFilter from '../reports/components/ReportFilter';
 import { useTranslation } from '../common/components/LocalizationProvider';
 import { useCatchCallback } from '../reactHelper';
@@ -179,7 +186,7 @@ const ReplayPage = () => {
   const [speed, setSpeed] = useState(1);
   const mapFollowPref = useAttributePreference('mapFollow', true);
   const [follow, setFollow] = useState(mapFollowPref);
-  // Pestaña del panel lateral: 0 = Paradas, 1 = Detalles del punto actual.
+  // Pestaña del panel lateral: 0 = Paradas, 1 = Detalles del punto actual, 2 = Estados V2.
   const [panelTab, setPanelTab] = useState(0);
   // Velocidad en Detalles: reportada (Doppler del equipo) y derivada
   // (geometría ±2 fixes) por separado. El Doppler miente en 0 en marcha
@@ -239,9 +246,22 @@ const ReplayPage = () => {
     };
   }, [positions, accuracyThreshold]);
   const { stops } = audit;
+  // Estados V2 (MotionStateV2 calculado por el servidor): tramos continuos
+  // MOVING/PAUSED/STOPPED/UNKNOWN. [] con datos históricos (sin atributo).
+  const motionV2Segments = useMemo(() => buildMotionV2Segments(positions), [positions]);
+  const motionV2Active = motionV2StateOf(positions[index]);
   // Trazo pegado a carretera: segmentos matcheados por el servidor.
   // Si no hay match (matcher caído o sin vías), la línea honesta queda visible.
   const [matchSegments, setMatchSegments] = useState(null);
+  // Calidad del match (0-1, puntos casados / evaluados) o null si no hay match:
+  // sin dato real NO se muestra badge (nunca inventar).
+  const [matchQuality, setMatchQuality] = useState(null);
+  // Color de la línea casada (mismo que MapRouteMatch): la leyenda debe
+  // mostrar la muestra "medido" con el color real del dispositivo.
+  const matchReportColor = useSelector((state) => {
+    const attributes = selectedDeviceId ? state.devices.items[selectedDeviceId]?.attributes : null;
+    return attributes?.['web.reportColor'] || '#1a73e8';
+  });
   // Spans de parada sobre `positions` crudas: esos fixes NO van al matcher
   // (el matcher los pegaría a la calle vecina y la parada se vería "fuera
   // del lugar"); se dibujan honestos y las flechas/marcador no hacen snap ahí.
@@ -260,7 +280,17 @@ const ReplayPage = () => {
           decimateForMatch(positions.slice(piece.from, piece.to), {
             hideInaccurate: false,
             accuracyThreshold,
-          }).map((chunk) => chunk.map((p) => [p.longitude, p.latitude, toSpeedOrNull(p)])),
+          }).map((chunk) =>
+            // [lon, lat, speed, accuracy?]: el 4º elemento (solo si el fix trae
+            // accuracy real > 0) alimenta el sigma por punto del matcher.
+            chunk.map((p) => {
+              const point = [p.longitude, p.latitude, toSpeedOrNull(p)];
+              if (Number.isFinite(p.accuracy) && p.accuracy > 0) {
+                point.push(p.accuracy);
+              }
+              return point;
+            }),
+          ),
         ),
     [pieces, positions, accuracyThreshold],
   );
@@ -346,6 +376,7 @@ const ReplayPage = () => {
   useEffect(() => {
     if (!loaded || positions.length < 2 || !moveTracks.length) {
       setMatchSegments(null);
+      setMatchQuality(null);
       return;
     }
     let cancelled = false;
@@ -360,14 +391,18 @@ const ReplayPage = () => {
         if (!cancelled) {
           if (Array.isArray(data.segments) && data.segments.some(Array.isArray)) {
             setMatchSegments(data.segments);
+            const ratio = Number(data.snappedRatio);
+            setMatchQuality(Number.isFinite(ratio) ? ratio : null);
           } else {
             setMatchSegments(null);
+            setMatchQuality(null);
           }
         }
       })
       .catch((error) => {
         if (!cancelled) {
           setMatchSegments(null);
+          setMatchQuality(null);
           // El fallback honesto ya cubre al usuario; el error va a Sentry.
           try {
             Sentry.captureException(error, {
@@ -646,6 +681,42 @@ const ReplayPage = () => {
     return '';
   }, [positions, index, t]);
 
+  // Resumen compacto de calidad del fix actual: clase con color, confianza
+  // (0-100), fuente de velocidad, satélites y edad del fix (null si el fix
+  // no expone ninguno de esos atributos).
+  const qualitySummary = useMemo(() => {
+    if (index >= positions.length) {
+      return null;
+    }
+    const attrs = positions[index].attributes || {};
+    const parts = [];
+    if (attrs.qualityClass) {
+      parts.push(attrs.qualityClass);
+    }
+    const confidence = Number(attrs.fixConfidence);
+    if (Number.isFinite(confidence)) {
+      parts.push(`${Math.round(confidence)}%`);
+    }
+    const sourceLabel = speedSourceLabel(attrs.speedSource, t);
+    if (sourceLabel) {
+      parts.push(sourceLabel);
+    }
+    const gnssUsed = Number(attrs.gnssUsed);
+    const gnssTotal = Number(attrs.gnssTotal);
+    if (Number.isFinite(gnssUsed) && Number.isFinite(gnssTotal)) {
+      parts.push(`${gnssUsed}/${gnssTotal} ${t('replayAuditSatellites')}`);
+    } else if (Number.isFinite(gnssUsed)) {
+      parts.push(`${gnssUsed} ${t('replayAuditSatellites')}`);
+    }
+    const fixAgeSec = Number(attrs.fixAgeSec);
+    if (Number.isFinite(fixAgeSec)) {
+      parts.push(`${Math.round(fixAgeSec)} s`);
+    }
+    return parts.length
+      ? { text: parts.join(' · '), color: qualityColor(attrs.qualityClass) }
+      : null;
+  }, [positions, index, t]);
+
   return (
     <div className={classes.root}>
       <MapView>
@@ -707,6 +778,49 @@ const ReplayPage = () => {
               <Typography variant="caption" align="center" display="block" color="textSecondary">
                 {`${audit.integrity.rawCount} ${t('replayAuditPositions')} · ${audit.integrity.stopCount} ${t('reportReplayStops').toLowerCase()} · ${audit.integrity.offlineCount} ${t('replayAuditOffline')}`}
               </Typography>
+              {/* Leyenda honesta: solo con match activo. Sólido = medido pegado
+                  a vía; punteado = sin match (trazo crudo del fix). */}
+              {matchSegments && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 2 }}>
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                  >
+                    <span
+                      style={{
+                        width: 18,
+                        height: 0,
+                        borderTop: `3px solid ${matchReportColor}`,
+                        display: 'inline-block',
+                      }}
+                    />
+                    {t('replayMatchLegendMeasured')}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
+                  >
+                    <span
+                      style={{
+                        width: 18,
+                        height: 0,
+                        borderTop: '3px dashed #777777',
+                        display: 'inline-block',
+                      }}
+                    />
+                    {t('replayMatchLegendEstimated')}
+                  </Typography>
+                </div>
+              )}
+              {/* Badge de calidad del match: % de puntos enviados que quedaron
+                  pegados a vía. Sin match no hay dato y no se muestra. */}
+              {matchSegments && matchQuality != null && (
+                <Typography variant="caption" align="center" display="block" color="textSecondary">
+                  {`${t('replayMatchQuality')}: ${Math.round(matchQuality * 100)}% · ${t('replayMatchSnappedPoints')}`}
+                </Typography>
+              )}
               <Slider
                 className={classes.slider}
                 max={positions.length - 1}
@@ -788,6 +902,10 @@ const ReplayPage = () => {
                     sx={{ minHeight: 36, fontSize: '0.8rem' }}
                   />
                   <Tab label={t('sharedShowDetails')} sx={{ minHeight: 36, fontSize: '0.8rem' }} />
+                  <Tab
+                    label={`${t('motionV2States')} (${motionV2Segments.length})`}
+                    sx={{ minHeight: 36, fontSize: '0.8rem' }}
+                  />
                 </Tabs>
                 {panelTab === 0 ? (
                   stops.length ? (
@@ -813,6 +931,55 @@ const ReplayPage = () => {
                   ) : (
                     <Typography variant="caption" color="textSecondary">
                       {t('reportReplayNoStops')}
+                    </Typography>
+                  )
+                ) : panelTab === 2 ? (
+                  motionV2Segments.length ? (
+                    <List dense disablePadding sx={{ maxHeight: 180, overflow: 'auto' }}>
+                      {motionV2Segments.map((segment, segmentIndex) => (
+                        <ListItemButton
+                          key={segmentIndex}
+                          dense
+                          selected={
+                            motionV2Active === segment.state &&
+                            positions[index] &&
+                            Date.parse(positions[index].fixTime) >= segment.start &&
+                            Date.parse(positions[index].fixTime) <= segment.end
+                          }
+                          onClick={() => {
+                            setPlaying(false);
+                            const target = positions.findIndex(
+                              (p) => Date.parse(p.fixTime) >= segment.start,
+                            );
+                            if (target >= 0) {
+                              setIndex(target);
+                            }
+                            setPanelTab(1);
+                          }}
+                        >
+                          <ListItemText
+                            primary={
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: 2,
+                                    background: MOTION_V2_COLORS[segment.state],
+                                    display: 'inline-block',
+                                  }}
+                                />
+                                {segment.state}
+                              </span>
+                            }
+                            secondary={`${formatTime(segment.start, 'time')} → ${formatTime(segment.end, 'time')} · ${formatMotionV2Duration(segment.durationMs)}`}
+                          />
+                        </ListItemButton>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="caption" color="textSecondary">
+                      {t('motionV2NoData')}
                     </Typography>
                   )
                 ) : index < positions.length ? (
@@ -865,6 +1032,17 @@ const ReplayPage = () => {
                             <TableCell>{t('replayAuditProvider')}</TableCell>
                             <TableCell align="right">
                               {positions[index].attributes.provider}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {qualitySummary && (
+                          <TableRow>
+                            <TableCell>{t('replayAuditQuality')}</TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{ color: qualitySummary.color || 'text.primary' }}
+                            >
+                              {qualitySummary.text}
                             </TableCell>
                           </TableRow>
                         )}

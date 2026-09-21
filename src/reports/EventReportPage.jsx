@@ -29,6 +29,7 @@ import fetchOrThrow from '../common/util/fetchOrThrow';
 import exportExcel from '../common/util/exportExcel';
 import AddressValue from '../common/components/AddressValue';
 import { deviceEquality } from '../common/util/deviceEquality';
+import { processEvents } from '../common/util/eventDigest';
 
 const columnsArray = [
   ['eventTime', 'positionFixTime'],
@@ -118,7 +119,9 @@ const EventReportPage = () => {
           headers: { Accept: 'application/json' },
         });
         const events = await response.json();
-        setItems(events);
+        // R9: solo lo relevante para la empresa (jornadas, conexión desde/hasta,
+        // actualización de app, botón OTA) — el resto se descarta.
+        setItems(processEvents(events));
         const positionIds = Array.from(
           new Set(events.map((event) => event.positionId).filter((id) => id)),
         );
@@ -181,6 +184,13 @@ const EventReportPage = () => {
       case 'eventTime':
         return formatTime(value, 'seconds');
       case 'type':
+        if (value === 'mobileConnectionProblem') {
+          const since = item.attributes?.since;
+          const until = item.attributes?.until;
+          return until
+            ? `${t('eventMobileConnectionProblem')} ${new Date(since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} → ${new Date(until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : `${t('eventMobileConnectionProblem')} ${new Date(since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} → …`;
+        }
         return t(prefixString('event', value));
       case 'geofenceId':
         if (value > 0) {
@@ -295,7 +305,7 @@ const EventReportPage = () => {
               <ColumnSelect columns={columns} setColumns={setColumns} columnsArray={columnsArray} />
             </ReportFilter>
           </div>
-          <Table>
+          <Table sx={{ minWidth: 820 }}>
             <TableHead>
               <TableRow>
                 <TableCell className={classes.columnAction} />

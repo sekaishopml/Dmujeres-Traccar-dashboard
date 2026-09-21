@@ -83,13 +83,11 @@ const MapView = ({ children }) => {
   }, [theme.direction]);
 
   useEffect(() => {
-    const attribution = new maplibregl.AttributionControl({ compact: true });
+    // DMujeres: sin control de atribución (se quitó el pill de abajo-derecha).
     const navigation = new maplibregl.NavigationControl();
-    map.addControl(attribution, theme.direction === 'rtl' ? 'bottom-left' : 'bottom-right');
     map.addControl(navigation, theme.direction === 'rtl' ? 'top-left' : 'top-right');
     return () => {
       map.removeControl(navigation);
-      map.removeControl(attribution);
     };
   }, [theme.direction]);
 

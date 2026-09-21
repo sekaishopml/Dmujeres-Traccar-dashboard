@@ -1,6 +1,7 @@
 {
-  "version": "1.0.101",
-  "versionCode": 101,
-  "url": "https://github.com/sekaishopml/Dmujeres-Traccar/releases/download/v1.0.101/DMujeres-Tracking-1.0.101.apk",
-  "notes": "Observabilidad P4: diagnóstico de recuperación y capacidades del dispositivo"
+  "version": "1.1.21",
+  "versionCode": 131,
+  "url": "http://68.168.20.219:999/DMujeres-Tracking-1.1.21.apk",
+  "notes": "Mejoras de GPS y captura sin conexión",
+  "sha256": "f469c6c1649aaee7315bc7e0edd7699a36ba3c95459dc5b46854f5e918376a0c"
 }

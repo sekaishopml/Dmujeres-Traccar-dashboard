@@ -19,6 +19,7 @@ import {
   syncDelayMs,
   toTrackPoint,
 } from './replayAudit.js';
+import { shouldCut } from './pathDecimation.js';
 
 const T0 = Date.parse('2026-03-10T08:00:00Z');
 const iso = (ms) => new Date(ms).toISOString();
@@ -361,17 +362,27 @@ describe('partición marcha/parada para el matcher', () => {
     assert.equal(isInStopSpans(0, null), false);
   });
 
-  it('conectores unen piezas consecutivas con fixes reales', () => {
+  it('conectores solo si el par consecutivo es continuo (B-1, R3)', () => {
     const pieces = splitMovingAndStops(pts, analyzeStops(pts));
     const links = linkTracksFor(pieces, pts);
-    assert.equal(links.length, pieces.length - 1);
+    // Nuevo contrato (B-1): el conector se omite si `shouldCut(a, b)` es true.
+    // El fixture crudo tiene un salto temporal sintético en el borde marcha→
+    // parada (dt negativo, 7.5 km) → ese conector NO se dibuja.
+    let expected = 0;
+    for (let i = 0; i + 1 < pieces.length; i += 1) {
+      const a = pts[pieces[i].to - 1];
+      const b = pts[pieces[i + 1].from];
+      if (a && b && !shouldCut(a, b)) {
+        expected += 1;
+      }
+    }
+    assert.equal(links.length, expected);
     for (const link of links) {
       assert.equal(link.length, 2);
       assert.ok(link.every((p) => Array.isArray(p) && p.length === 3));
     }
-    // El conector marcha→parada une el último fix en marcha con el primero quieto.
-    const first = links[0];
-    assert.equal(first[1][0], pts[pieces[1].from].longitude);
+    // Cada conector une exactamente el último fix de la pieza con el primero
+    // de la siguiente (por eso se contaron así arriba).
   });
 
   it('línea unificada: match en marcha, honesto en parada, alineada', () => {

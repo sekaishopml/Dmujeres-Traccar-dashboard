@@ -126,8 +126,32 @@ const BottomMenu = () => {
   };
 
   return (
-    <Paper square elevation={3}>
-      <BottomNavigation value={currentSelection()} onChange={handleSelection} showLabels>
+    <Paper
+      square
+      elevation={0}
+      sx={{
+        borderTop: '1px solid rgba(24,24,24,0.08)',
+        boxShadow: '0 -2px 10px rgba(24,24,24,0.06)',
+      }}
+    >
+      <BottomNavigation
+        value={currentSelection()}
+        onChange={handleSelection}
+        showLabels
+        sx={{
+          backgroundColor: '#FFFFFF',
+          '& .MuiBottomNavigationAction-root': {
+            color: 'rgba(24,24,24,0.55)',
+          },
+          // Activo: rojo DMujeres; inactivo: negro suave (misma tipografía).
+          '& .Mui-selected': {
+            color: '#EB0045',
+          },
+          '& .MuiBottomNavigationAction-label.Mui-selected': {
+            fontWeight: 600,
+          },
+        }}
+      >
         <BottomNavigationAction
           label={t('mapTitle')}
           icon={

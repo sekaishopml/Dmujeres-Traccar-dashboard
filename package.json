@@ -46,7 +46,7 @@
     "generate-pwa-assets": "pwa-assets-generator --preset minimal public/logo.svg",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint --fix --max-warnings 0 .",
-    "test": "node --test src/map/util/"
+    "test": "node --test src"
   },
   "browserslist": {
     "production": [

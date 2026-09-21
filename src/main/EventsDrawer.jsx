@@ -20,12 +20,15 @@ import {
 } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
 import DeleteIcon from '@mui/icons-material/Delete';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import Grow from '@mui/material/Grow';
 import dayjs from 'dayjs';
 import { formatNotificationTitle, formatTime } from '../common/util/formatter';
 import { formatEventCauseDetail } from '../common/util/shift';
 import { useTranslation } from '../common/components/LocalizationProvider';
 import { eventsActions } from '../store';
 import fetchOrThrow from '../common/util/fetchOrThrow';
+import { processEvents } from '../common/util/eventDigest';
 
 const useStyles = makeStyles()((theme) => ({
   drawer: {
@@ -34,15 +37,88 @@ const useStyles = makeStyles()((theme) => ({
   toolbar: {
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
   },
   title: {
     flexGrow: 1,
+    fontWeight: 700,
   },
-  warning: {
-    backgroundColor: 'rgba(255, 235, 59, 0.12)',
+  row: {
+    padding: theme.spacing(1.25, 2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    borderRadius: 0,
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover,
+    },
   },
-  delete: {
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    flexShrink: 0,
+    marginRight: theme.spacing(1.5),
+  },
+  name: {
+    fontWeight: 600,
+  },
+  detail: {
     color: theme.palette.text.secondary,
+  },
+  empty: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: theme.spacing(1),
+    padding: theme.spacing(4, 2),
+    color: theme.palette.text.secondary,
+  },
+  // Botón MOSTRAR: negro elegante; al pasar el mouse, rojo DMujeres.
+  showButton: {
+    backgroundColor: '#181818',
+    color: '#FFFFFF',
+    fontWeight: 600,
+    letterSpacing: '0.4px',
+    borderRadius: 8,
+    boxShadow: 'none',
+    transition: 'background-color 160ms ease',
+    '&:hover': {
+      backgroundColor: '#EB0045',
+      boxShadow: 'none',
+    },
+    '&.Mui-disabled': {
+      backgroundColor: 'rgba(24,24,24,0.35)',
+      color: 'rgba(255,255,255,0.75)',
+    },
+  },
+  // Dispositivo y Período: negro elegante en reposo; rojo DMujeres al enfocar.
+  filterField: {
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: 'rgba(24,24,24,0.35)',
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#181818',
+    },
+    '& .Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: '#EB0045',
+      borderWidth: 2,
+    },
+    '& .MuiInputLabel-root': {
+      color: '#181818',
+      fontWeight: 500,
+    },
+    '& .MuiInputLabel-root.Mui-focused': {
+      color: '#EB0045',
+    },
+    '& .MuiSelect-icon': {
+      color: '#181818',
+    },
+  },
+  // Cubo de basura: rojo DMujeres (con fondo suave al pasar el mouse).
+  delete: {
+    color: '#EB0045',
+    '&:hover': {
+      backgroundColor: 'rgba(235, 0, 69, 0.08)',
+    },
   },
   filters: {
     display: 'flex',
@@ -135,19 +211,53 @@ const EventsDrawer = ({ open, onClose }) => {
     }
   }, [selectedDeviceId, computeRange]);
 
-  // Si no se hizo búsqueda, mostrar eventos en vivo del Redux
-  const displayEvents = apiEvents !== null ? apiEvents : liveEvents;
+  // Si no se hizo búsqueda, mostrar eventos en vivo del Redux.
+  const rawEvents = apiEvents !== null ? apiEvents : liveEvents;
+  // R9: solo lo relevante para la empresa (jornadas, conexión desde/hasta,
+  // actualización de app y botón OTA) — sin duplicar estados de presencia.
+  const displayEvents = useMemo(() => processEvents(rawEvents), [rawEvents]);
 
-  const formatType = (event) =>
-    formatNotificationTitle(t, {
-      type: event.type,
-      attributes: { alarms: event.attributes?.alarm },
-    });
+  const hhmm = (epoch) =>
+    new Date(epoch).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const formatSecondary = (event) => {
-    const time = formatTime(event.eventTime, 'seconds');
-    const detail = formatEventCauseDetail(t, event);
-    return detail ? `${time} • ${detail}` : time;
+  const fullTime = (epoch) => new Date(epoch).toLocaleString();
+
+  /** Presentación de cada tipo: color del punto + textos legibles. */
+  const eventMeta = (event) => {
+    switch (event.type) {
+      case 'mobileJourneyStarted':
+        return { color: '#2E7D32', label: t('eventMobileJourneyStarted'), detail: fullTime(event.eventTime) };
+      case 'mobileJourneyEnded':
+        return { color: '#EB0045', label: t('eventMobileJourneyEnded'), detail: fullTime(event.eventTime) };
+      case 'mobileConnectionProblem': {
+        const since = event.attributes?.since;
+        const until = event.attributes?.until;
+        const minutes = until ? Math.max(1, Math.round((until - since) / 60000)) : null;
+        return {
+          color: '#ED6C02',
+          label: t('eventMobileConnectionProblem'),
+          detail: until
+            ? `${hhmm(since)} → ${hhmm(until)} · ${minutes} min`
+            : `${hhmm(since)} → sin conexión`,
+        };
+      }
+      case 'mobileAppUpdated':
+        return {
+          color: '#0288D1',
+          label: t('eventMobileAppUpdated'),
+          detail: event.attributes?.from && event.attributes?.to
+            ? `${event.attributes.from} → ${event.attributes.to}`
+            : fullTime(event.eventTime),
+        };
+      case 'mobileOtaManual':
+        return { color: '#0288D1', label: t('eventMobileOtaManual'), detail: fullTime(event.eventTime) };
+      default:
+        return {
+          color: '#9E9E9E',
+          label: formatNotificationTitle(t, { type: event.type, attributes: {} }) || event.type,
+          detail: fullTime(event.eventTime),
+        };
+    }
   };
 
   return (
@@ -159,7 +269,7 @@ const EventsDrawer = ({ open, onClose }) => {
         {apiEvents === null && (
           <IconButton
             size="small"
-            color="inherit"
+            className={classes.delete}
             onClick={() => dispatch(eventsActions.deleteAll())}
           >
             <DeleteIcon fontSize="small" />
@@ -168,7 +278,7 @@ const EventsDrawer = ({ open, onClose }) => {
       </Toolbar>
 
       <Box className={classes.filters}>
-        <FormControl size="small" fullWidth>
+        <FormControl size="small" fullWidth className={classes.filterField}>
           <InputLabel>{t('sharedDevice')}</InputLabel>
           <Select
             value={selectedDeviceId}
@@ -184,7 +294,7 @@ const EventsDrawer = ({ open, onClose }) => {
           </Select>
         </FormControl>
 
-        <FormControl size="small" fullWidth>
+        <FormControl size="small" fullWidth className={classes.filterField}>
           <InputLabel>{t('reportPeriod')}</InputLabel>
           <Select
             value={period}
@@ -222,36 +332,61 @@ const EventsDrawer = ({ open, onClose }) => {
           </Box>
         )}
 
-        <Button variant="contained" size="small" onClick={handleShow} disabled={loading} fullWidth>
-          {loading ? <CircularProgress size={20} /> : t('reportShow')}
+        <Button
+          variant="contained"
+          size="small"
+          onClick={handleShow}
+          disabled={loading}
+          fullWidth
+          className={classes.showButton}
+        >
+          {loading ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : t('reportShow')}
         </Button>
       </Box>
 
       <List className={classes.drawer} dense>
-        {displayEvents.map((event) => (
-          <ListItemButton
-            key={event.id || `live-${event.eventTime}`}
-            onClick={() => event.id && navigate(`/event/${event.id}`)}
-            disabled={!event.id}
-            className={event.attributes?.mobileSeverity === 'warning' ? classes.warning : undefined}
-          >
-            <ListItemText
-              primary={`${devices[event.deviceId]?.name || ''} • ${formatType(event)}`}
-              secondary={formatSecondary(event)}
-            />
-            {apiEvents === null && (
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dispatch(eventsActions.delete(event));
-                }}
+        {displayEvents.length === 0 && (
+          <div className={classes.empty}>
+            <NotificationsNoneIcon fontSize="large" />
+            <Typography variant="body2">{t('eventsNoData')}</Typography>
+          </div>
+        )}
+        {displayEvents.map((event, index) => {
+          const meta = eventMeta(event);
+          const navId = event.originalId || event.id;
+          return (
+            <Grow in key={event.id || `live-${event.eventTime}-${index}`} timeout={200}>
+              <ListItemButton
+                onClick={() => navId && navigate(`/event/${navId}`)}
+                disabled={!navId}
+                className={classes.row}
               >
-                <DeleteIcon fontSize="small" className={classes.delete} />
-              </IconButton>
-            )}
-          </ListItemButton>
-        ))}
+                <span className={classes.dot} style={{ backgroundColor: meta.color }} />
+                <ListItemText
+                  primary={
+                    <span>
+                      <span className={classes.name}>{devices[event.deviceId]?.name || ''}</span>
+                      <span className={classes.detail}>{` · ${meta.label}`}</span>
+                    </span>
+                  }
+                  secondary={<span className={classes.detail}>{meta.detail}</span>}
+                  slotProps={{ secondary: { noWrap: true } }}
+                />
+                {apiEvents === null && (
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch(eventsActions.delete(event));
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" className={classes.delete} />
+                  </IconButton>
+                )}
+              </ListItemButton>
+            </Grow>
+          );
+        })}
       </List>
     </Drawer>
   );

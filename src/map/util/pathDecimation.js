@@ -311,6 +311,23 @@ export function detectStops(
     if (run.length < 2) {
       return;
     }
+    // B-4 (R3): el outlier tolerado por Doppler no puede fabricar una "parada"
+    // si la racha se desplazó. Mismo criterio que `runIsStationary`: si dos
+    // puntos de la racha distan más del doble del radio, NO es quieta. Caso
+    // real (macias 10:13:10→10:17:47): 994 m entre extremos con Doppler ~0
+    // generaban una parada fantasma de 4.6 min y una recta de 994 m.
+    let diameterM = 0;
+    for (let i = 0; i < run.length; i += 1) {
+      for (let j = i + 1; j < run.length; j += 1) {
+        const d = distanceMeters(run[j], run[i]);
+        if (d > diameterM) {
+          diameterM = d;
+        }
+      }
+    }
+    if (diameterM > radiusM * 2) {
+      return;
+    }
     const startTime = timeOf(run[0]);
     const endTime = timeOf(run[run.length - 1]);
     if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
@@ -800,6 +817,28 @@ export const DECIMATION_THRESHOLD = 200;
 export const MAX_GAP_MS = 5 * 60 * 1000;
 
 /**
+ * FAST-GAP: hueco de captura en marcha con pantalla apagada (ahorro de
+ * batería): la app solo entrega un fix cada ~2 min y la pata entre ambos
+ * extremos no tiene ningún fix intermedio, así que la recta cruda cruza
+ * cuadras y las flechas interpoladas sobre ella son fantasmas que el slider
+ * no puede seleccionar. Si el hueco supera FAST_GAP_DT_MS Y la distancia
+ * supera FAST_GAP_DIST_M no hay evidencia de continuidad y se corta igual que
+ * un hueco > MAX_GAP_MS.
+ */
+export const FAST_GAP_DT_MS = 45_000;
+
+/**
+ * Distancia (m) mínima del salto para que el hueco cuente como fast-gap.
+ * Era 200 m y dejaba una banda ciega: huecos de 45 s–5 min con 100–200 m no
+ * se cortaban ni por fast-gap (distancia) ni por max-gap (tiempo) y se
+ * dibujaban como recta. Se baja a SAME_PLACE_M (100 m): por debajo de 100 m
+ * el hueco es la parada, no una caída de datos (ver SAME_PLACE_M). Cierre de
+ * banda documentado en docs/audit/ROUTE_SEGMENTATION_AUDIT.md §1.3 y
+ * docs/audit/ARCH_RESEARCH_ROUTE_REPLAY.md §7(b).
+ */
+export const FAST_GAP_DIST_M = 100;
+
+/**
  * Input para map-matching (/api/positions/match): el MISMO trazo limpio que
  * dibuja la línea (fantasmas fuera, paradas colapsadas opcionales) pero con
  * tolerancia FIJA (sin zoom: estable entre renders) y ya cortado por huecos/
@@ -807,6 +846,12 @@ export const MAX_GAP_MS = 5 * 60 * 1000;
  * puntos: cada tramo se casa independiente y la unión conserva los cortes.
  * No muta el input.
  */
+/**
+ * Pata máxima (m) del input de match: por encima se interpola para que el
+ * Viterbi siempre tenga observaciones cercanas que casar.
+ */
+export const MAX_MATCH_LEG_M = 120;
+
 export function decimateForMatch(positions, { hideInaccurate, accuracyThreshold }) {
   const { points: working } = cleanRoutePositions(positions, { hideInaccurate, accuracyThreshold });
   const tolerance = SMOOTH_FLOOR_M / 111320;
@@ -816,15 +861,45 @@ export function decimateForMatch(positions, { hideInaccurate, accuracyThreshold 
         chunk.length > 2 ? smoothChaikinOnce(simplify(filterSpikes(chunk), tolerance)) : chunk,
       )
       .filter((chunk) => chunk.length >= 2)
-      // Se conserva speed (nudos, NaN si no hay) para colorear el fallback
-      // honesto por velocidad igual que el trazo principal.
+      // Se conservan speed (nudos, NaN si no hay) para colorear el fallback
+      // honesto por velocidad igual que el trazo principal, y accuracy (m,
+      // null si no hay) para que el matcher use el sigma real por punto.
       .map((chunk) =>
         chunk.map((p) => ({
           latitude: p.latitude,
           longitude: p.longitude,
           speed: Number(p.speed),
+          accuracy:
+            Number.isFinite(Number(p.accuracy)) && Number(p.accuracy) > 0
+              ? Number(p.accuracy)
+              : null,
         })),
       )
+      // Subdivide patas largas (>120 m, típico de rectas simplificadas): el
+      // Viterbi no casa saltos kilométricos entre observaciones (límite de
+      // nodos visitados) y los devuelve crudos. Interpolar aquí es legítimo:
+      // es input de casado, no flechas (esas solo pisan fixes reales).
+      .map((chunk) => {
+        const out = [chunk[0]];
+        for (let i = 0; i < chunk.length - 1; i += 1) {
+          const a = chunk[i];
+          const b = chunk[i + 1];
+          const legLen = distanceMeters(a, b);
+          const parts = Math.min(20, Math.floor(legLen / MAX_MATCH_LEG_M));
+          for (let k = 1; k <= parts; k += 1) {
+            const f = k / (parts + 1);
+            out.push({
+              latitude: a.latitude + (b.latitude - a.latitude) * f,
+              longitude: a.longitude + (b.longitude - a.longitude) * f,
+              speed: Number(b.speed),
+              // Punto interpolado (no medido): no aporta accuracy al sigma.
+              accuracy: null,
+            });
+          }
+          out.push(b);
+        }
+        return out;
+      })
   );
 }
 
@@ -890,17 +965,28 @@ export function isTeleport(a, b) {
 export const SAME_PLACE_M = 100;
 
 /**
- * Indica si entre dos puntos consecutivos del trazo NO debe dibujarse segmento:
- * hueco temporal mayor a maxGapMs o teleport (salto imposible). Dos fixes en el
- * mismo sitio (<= SAME_PLACE_M) nunca se cortan: el hueco es la parada, no una
- * caída de datos. Usar tanto al segmentar como al dibujar (simplify puede crear
- * un salto al quitar puntos intermedios) y al orientar flechas.
+ * Indica si entre dos puntos consecutivos del trazo NO debe dibujarse segmento.
+ * Tres reglas, basta que cumpla una (SAME_PLACE corta-circuita primero):
+ *  1) fast-gap: hueco de captura en marcha con pantalla apagada (fix cada
+ *     ~2 min): dt > FAST_GAP_DT_MS y distancia > FAST_GAP_DIST_M. Sin ningún
+ *     fix intermedio no hay evidencia de continuidad: la recta cruda cruza
+ *     cuadras y las flechas interpoladas sobre ella son fantasmas;
+ *  2) hueco temporal mayor a maxGapMs;
+ *  3) teleport (salto imposible).
+ * Dos fixes en el mismo sitio (<= SAME_PLACE_M) nunca se cortan: el hueco es
+ * la parada, no una caída de datos. Usar tanto al segmentar como al dibujar
+ * (simplify puede crear un salto al quitar puntos intermedios) y al orientar
+ * flechas.
  */
 export function shouldCut(a, b, maxGapMs = MAX_GAP_MS) {
-  if (distanceMeters(a, b) <= SAME_PLACE_M) {
+  const dist = distanceMeters(a, b);
+  if (dist <= SAME_PLACE_M) {
     return false;
   }
   const delta = timeOf(b) - timeOf(a);
+  if (Number.isFinite(delta) && delta > FAST_GAP_DT_MS && dist > FAST_GAP_DIST_M) {
+    return true;
+  }
   if (Number.isFinite(delta) && delta > maxGapMs) {
     return true;
   }

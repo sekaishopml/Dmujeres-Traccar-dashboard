@@ -26,7 +26,9 @@ const CachingController = () => {
   useAsyncTask(
     async ({ signal }) => {
       if (authenticated) {
-        const response = await fetchOrThrow('/api/groups', { signal });
+        // R9: all=true → el admin recibe TODOS los grupos (departamentos); un
+        // usuario normal recibe solo los suyos (el server filtra por permisos).
+        const response = await fetchOrThrow('/api/groups?all=true', { signal });
         dispatch(groupsActions.refresh(await response.json()));
       }
     },

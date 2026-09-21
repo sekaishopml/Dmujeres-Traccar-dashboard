@@ -25,6 +25,29 @@ const toNumber = (value) => {
 // Jornada activa: `mobile.journeyId` > 0 en los atributos del device.
 export const isJourneyActive = (device) => toNumber(device?.attributes?.['mobile.journeyId']) > 0;
 
+
+export const SILENT_THRESHOLD_MS = 900_000;
+
+/**
+ * Estado de salud de tracking derivado (LIVE/DEGRADED/SILENT/OFFLINE):
+ * espejo del TrackingHealthPolicy de la app, con la evidencia visible
+ * en el dashboard (lastUpdate = última comunicación del device).
+ */
+export const deviceHealthState = (device, position) => {
+  if (!isJourneyActive(device)) {
+    return 'OFFLINE';
+  }
+  const lastComms = device?.lastUpdate ? dayjs(device.lastUpdate).valueOf() : null;
+
+  if (!lastComms || Date.now() - lastComms > SILENT_THRESHOLD_MS) {
+    return 'SILENT';
+  }
+  if (isSignalDegraded(device, position)) {
+    return 'DEGRADED';
+  }
+  return 'LIVE';
+};
+
 const isSignalDegraded = (device, position) =>
   device?.attributes?.['mobile.degraded'] === true ||
   toNumber(device?.attributes?.['mobile.rttMs']) > MAX_SIGNAL_RTT_MS ||
@@ -104,6 +127,22 @@ export const getDeviceStateDisplayColor = (deviceState) => {
       return 'info';
     default:
       return 'neutral';
+  }
+};
+
+// Orden de lista pedido por la empresa (CCTV): EN LINEA primero, luego
+// DETENIDOS, luego SIN SEÑAL y DESHABILITADOS al final; dentro de cada grupo
+// el llamador ordena alfabéticamente.
+export const getDeviceStateSortOrder = (deviceState) => {
+  switch (deviceState) {
+    case DEVICE_ONLINE:
+      return 0;
+    case DEVICE_STOPPED:
+      return 1;
+    case DEVICE_NO_SIGNAL:
+      return 2;
+    default:
+      return 3; // DEVICE_DISABLED
   }
 };
 

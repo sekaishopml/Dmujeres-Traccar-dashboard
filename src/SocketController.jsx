@@ -1,11 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Snackbar, Alert } from '@mui/material';
 import { devicesActions, sessionActions } from './store';
 import { useCatchCallback, useAsyncTask } from './reactHelper';
-import { formatNotificationTitle, formatTime } from './common/util/formatter';
-import { useTranslation } from './common/components/LocalizationProvider';
 import alarm from './resources/alarm.mp3';
 import { eventsActions } from './store/events';
 import useFeatures from './common/util/useFeatures';
@@ -44,13 +41,10 @@ const SocketController = () => {
     }
   }, []);
 
-  const [notifications, setNotifications] = useState([]);
-
   const soundEvents = useAttributePreference('soundEvents', '');
   const soundAlarms = useAttributePreference('soundAlarms', 'sos');
 
   const features = useFeatures();
-  const t = useTranslation();
 
   const handleEvents = useCallback(
     (events) => {
@@ -67,23 +61,8 @@ const SocketController = () => {
       ) {
         playAlarm();
       }
-      setNotifications(
-        events.map((event) => {
-          const severity = event.attributes?.mobileSeverity || (event.type === 'alarm' ? 'error' : 'info');
-          const title = formatNotificationTitle(t, {
-            type: event.type,
-            attributes: { alarms: event.attributes?.alarm },
-          });
-          return {
-            id: event.id,
-            message: title || event.attributes?.message || event.type,
-            severity,
-            show: true,
-          };
-        }),
-      );
     },
-    [features, dispatch, soundEvents, soundAlarms, t],
+    [features, dispatch, soundEvents, soundAlarms],
   );
 
   const handleEventsRef = useRef(handleEvents);
@@ -261,28 +240,7 @@ const SocketController = () => {
     };
   }, [authenticated, connectSocket]);
 
-  return (
-    <>
-      {notifications.map((notification) => (
-        <Snackbar
-          key={notification.id}
-          open={notification.show}
-          autoHideDuration={null}
-          onClose={() => setNotifications((prev) => prev.filter((e) => e.id !== notification.id))}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert
-            onClose={() => setNotifications((prev) => prev.filter((e) => e.id !== notification.id))}
-            severity={notification.severity || 'info'}
-            variant="filled"
-            sx={{ width: '100%', backgroundColor: notification.severity === 'warning' ? '#ed6c02' : undefined }}
-          >
-            {notification.message}
-          </Alert>
-        </Snackbar>
-      ))}
-    </>
-  );
+  return null;
 };
 
 export default SocketController;

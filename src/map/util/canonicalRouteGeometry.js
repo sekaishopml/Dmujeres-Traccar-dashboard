@@ -35,6 +35,18 @@ export const MAX_ARROWS = 2000;
 /** Espaciado mínimo físico (m): por debajo domina el ruido GPS, no la ruta. */
 export const MIN_ARROW_SPACING_M = 10;
 
+/**
+ * Pata máxima (ms) y (m) para INTERPOLAR flechas: una pata con dt mayor o
+ * distancia mayor no tiene evidencia de continuidad: NUNCA se interpola flecha
+ * sobre ella; solo se dibujan flechas sobre fixes reales. Los chunks ya se
+ * cortan por fast-gap vía shouldCut, así que las patas largas rápidas dejan de
+ * existir dentro de los chunks; este gate queda como defensa adicional para
+ * las patas largas lentas dentro de un chunk (p.ej. paradas con 20 s entre
+ * fixes o simplificaciones que estiran un tramo).
+ */
+export const ARROW_MAX_LEG_DT_MS = 20_000;
+export const ARROW_MAX_LEG_M = 150;
+
 /** Épsilon (m) para comparar distancias acumuladas sin duplicar vértices. */
 const EPS_M = 1e-6;
 
@@ -199,6 +211,12 @@ export function spacingForZoom(zoom) {
  * chunk con guardia de separación. El rumbo sale de la geometría visible
  * (bearingDegrees sobre el segmento), nunca de position.course.
  *
+ * Solo se interpolan flechas sobre patas con evidencia de continuidad
+ * (dt <= ARROW_MAX_LEG_DT_MS y distancia <= ARROW_MAX_LEG_M): una pata mayor
+ * no emite nada y la emisión retoma en el fix real siguiente; los gaps y
+ * teleports ya parten los chunks (shouldCut), así que nunca hay flecha
+ * atravesándolos.
+ *
  * Devuelve { arrows, spacingMeters }: si los arrows superarían MAX_ARROWS, el
  * espaciado se relaja ×1.5 (uniforme, determinista) hasta encajar. Eso es una
  * guarda de render, no el mecanismo: el mecanismo siempre es la distancia.
@@ -251,6 +269,20 @@ function walkChunk(chunk, chunkId, spacing, out) {
     const legStart = cumulative[i];
     const legEnd = cumulative[i + 1];
     if (legEnd - legStart < 1e-9) {
+      continue;
+    }
+    // Gate de continuidad: una pata con dt > ARROW_MAX_LEG_DT_MS o distancia
+    // > ARROW_MAX_LEG_M no interpola flechas (serían fantasmas sobre datos sin
+    // evidencia). Los puntos del chunk son objetos normalizados que conservan
+    // fixTime; timeOf acepta objetos (NaN para pares en vivo: sin tiempo no se
+    // puede juzgar el dt y manda solo la distancia). El cursor salta entera la
+    // pata SIN emitir: si se dejara, la siguiente pata interpolaría con f<0
+    // detrás de su inicio. La siguiente emisión retoma exactamente en el fix
+    // real donde arranca la pata siguiente (f=0).
+    const dtMs = timeOf(points[i + 1]) - timeOf(points[i]);
+    const legDist = legEnd - legStart;
+    if ((Number.isFinite(dtMs) && dtMs > ARROW_MAX_LEG_DT_MS) || legDist > ARROW_MAX_LEG_M) {
+      next = Math.max(next, legEnd);
       continue;
     }
     while (next < legEnd - EPS_M && next < lengthMeters - EPS_M) {

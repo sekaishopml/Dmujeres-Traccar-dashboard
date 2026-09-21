@@ -10,7 +10,9 @@ import { toMapCoordinates } from './core/mapUtil';
 // nuevos), el servidor devuelve el fix crudo en la MISMA lista, así que la
 // línea es continua y nunca se desvía más que el dato honesto. Los tramos
 // cuyo segmento vino null (sin match) se dibujan con los puntos crudos del
-// input (tracks, mismo orden): ningún tramo queda nunca sin línea.
+// input (tracks, mismo orden): ningún tramo queda nunca sin línea. Estilo
+// honesto: medido (casado a vía) = sólido; sin match (crudo) = punteado,
+// porque `line-dasharray` no es data-driven y exige capa aparte (MapLibre).
 const MapRouteMatch = ({ segments, tracks, deviceId }) => {
   const id = useId();
 
@@ -33,10 +35,12 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
         },
       },
     });
+    // Medido (casado a vía): sólido.
     map.addLayer({
       source: id,
       id: `${id}-line`,
       type: 'line',
+      filter: ['!=', ['get', 'dashed'], true],
       layout: {
         'line-join': 'round',
         'line-cap': 'round',
@@ -47,10 +51,31 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
         'line-opacity': ['get', 'opacity'],
       },
     });
+    // Sin match (trazo crudo): punteado, capa separada porque line-dasharray
+    // no admite expresiones data-driven.
+    map.addLayer({
+      source: id,
+      id: `${id}-line-estimated`,
+      type: 'line',
+      filter: ['==', ['get', 'dashed'], true],
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'butt',
+      },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': ['get', 'width'],
+        'line-opacity': ['get', 'opacity'],
+        'line-dasharray': [1.5, 1.5],
+      },
+    });
 
     return () => {
       if (map.getLayer(`${id}-line`)) {
         map.removeLayer(`${id}-line`);
+      }
+      if (map.getLayer(`${id}-line-estimated`)) {
+        map.removeLayer(`${id}-line-estimated`);
       }
       if (map.getSource(id)) {
         map.removeSource(id);
@@ -68,7 +93,7 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
       .filter(Number.isFinite);
     const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
     const minSpeed = speeds.length ? Math.min(...speeds) : 0;
-    const pushLine = (a, b, color) => {
+    const pushLine = (a, b, color, dashed = false) => {
       list.push({
         type: 'Feature',
         geometry: {
@@ -79,6 +104,7 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
           color,
           width: mapLineWidth,
           opacity: mapLineOpacity,
+          dashed,
         },
       });
     };
@@ -90,11 +116,17 @@ const MapRouteMatch = ({ segments, tracks, deviceId }) => {
         return;
       }
       // Sin match en este tramo: línea honesta con los puntos crudos del input,
-      // coloreada por velocidad igual que el trazo principal (nada gris).
+      // coloreada por velocidad igual que el trazo principal y punteada para
+      // que la leyenda "medido vs sin match" sea real (nunca gris = invisible).
       const raw = (tracks || [])[index];
       if (Array.isArray(raw)) {
         for (let i = 0; i < raw.length - 1; i += 1) {
-          pushLine(raw[i], raw[i + 1], getSpeedColor(Number(raw[i + 1][2]), minSpeed, maxSpeed));
+          pushLine(
+            raw[i],
+            raw[i + 1],
+            getSpeedColor(Number(raw[i + 1][2]), minSpeed, maxSpeed),
+            true,
+          );
         }
       }
     });

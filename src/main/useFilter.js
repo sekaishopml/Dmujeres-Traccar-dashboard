@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import dayjs from 'dayjs';
-import { selectDeviceState } from '../common/util/shift';
+import { getDeviceStateSortOrder, selectDeviceState } from '../common/util/shift';
 
 export default (
   keyword,
@@ -60,6 +60,16 @@ export default (
         });
         break;
       default:
+        // Empresa (CCTV): EN LINEA → DETENIDO → SIN SEÑAL → DESHABILITADO,
+        // alfabético dentro de cada grupo.
+        filtered.sort((device1, device2) => {
+          const order1 = getDeviceStateSortOrder(selectDeviceState(device1, positions[device1.id]));
+          const order2 = getDeviceStateSortOrder(selectDeviceState(device2, positions[device2.id]));
+          if (order1 !== order2) {
+            return order1 - order2;
+          }
+          return (device1.name || '').localeCompare(device2.name || '');
+        });
         break;
     }
     setFilteredDevices(filtered);

@@ -396,6 +396,54 @@ export default (t) =>
         type: 'number',
         dataType: 'speed',
       },
+      provider: {
+        name: t('replayAuditProvider'),
+        type: 'string',
+      },
+      fixConfidence: {
+        name: t('positionFixConfidence'),
+        type: 'number',
+      },
+      qualityClass: {
+        name: t('positionQualityClass'),
+        type: 'string',
+      },
+      speedAccuracyMps: {
+        name: t('positionSpeedAccuracy'),
+        type: 'number',
+      },
+      bearingAccuracyDeg: {
+        name: t('positionBearingAccuracy'),
+        type: 'number',
+      },
+      altitudeAccuracyM: {
+        name: t('positionAltitudeAccuracy'),
+        type: 'number',
+      },
+      gnssUsed: {
+        name: t('positionGnssUsed'),
+        type: 'number',
+      },
+      gnssTotal: {
+        name: t('positionGnssTotal'),
+        type: 'number',
+      },
+      fixAgeSec: {
+        name: t('positionFixAge'),
+        type: 'number',
+      },
+      speedSource: {
+        name: t('positionSpeedSource'),
+        type: 'string',
+      },
+      'mobile.sessionId': {
+        name: t('positionMobileSession'),
+        type: 'string',
+      },
+      'mobile.bootId': {
+        name: t('positionMobileBoot'),
+        type: 'string',
+      },
     }),
     [t],
   );
