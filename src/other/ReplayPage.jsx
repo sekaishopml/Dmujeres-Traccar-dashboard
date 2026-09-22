@@ -430,7 +430,7 @@ const ReplayPage = () => {
   const replayDevice = useSelector((state) =>
     selectedDeviceId ? state.devices.items[selectedDeviceId] : null,
   );
-  const { stateLabel, stateMuiColor } = useDeviceStatus(replayDevice);
+  const { stateLabel } = useDeviceStatus(replayDevice);
   const deviceName = replayDevice?.name ?? null;
 
   useEffect(() => {
@@ -759,7 +759,7 @@ const ReplayPage = () => {
                 </Typography>
                 {/* Estado operativo del equipo (EN LÍNEA / DETENIDO / SIN CONEXIÓN /
                     DESHABILITADO), el mismo de la lista y la burbuja del mapa. */}
-                <Chip size="small" color={stateMuiColor} label={stateLabel} />
+                <Chip size="small" label={stateLabel} />
                 <IconButton onClick={handleDownload}>
                   <DownloadIcon />
                 </IconButton>
@@ -771,49 +771,6 @@ const ReplayPage = () => {
           </div>
           {loaded && !filterOpen && (
             <>
-              {/* Leyenda honesta: solo con match activo. Sólido = medido pegado
-                  a vía; punteado = sin match (trazo crudo del fix). */}
-              {matchSegments && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 2 }}>
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                  >
-                    <span
-                      style={{
-                        width: 18,
-                        height: 0,
-                        borderTop: `3px solid ${matchReportColor}`,
-                        display: 'inline-block',
-                      }}
-                    />
-                    {t('replayMatchLegendMeasured')}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                  >
-                    <span
-                      style={{
-                        width: 18,
-                        height: 0,
-                        borderTop: '3px dashed #777777',
-                        display: 'inline-block',
-                      }}
-                    />
-                    {t('replayMatchLegendEstimated')}
-                  </Typography>
-                </div>
-              )}
-              {/* Badge de calidad del match: % de puntos enviados que quedaron
-                  pegados a vía. Sin match no hay dato y no se muestra. */}
-              {matchSegments && matchQuality != null && (
-                <Typography variant="caption" align="center" display="block" color="textSecondary">
-                  {`${t('replayMatchQuality')}: ${Math.round(matchQuality * 100)}% · ${t('replayMatchSnappedPoints')}`}
-                </Typography>
-              )}
               <Slider
                 className={classes.slider}
                 max={positions.length - 1}
@@ -879,9 +836,7 @@ const ReplayPage = () => {
                     ))}
                   </Select>
                 </div>
-                <Typography variant="caption" sx={{ color: 'text.primary' }}>
-                  {formatTime(positions[index].fixTime, 'seconds')}
-                </Typography>
+                
               </div>
               <div style={{ marginTop: 4 }}>
                 <Tabs
