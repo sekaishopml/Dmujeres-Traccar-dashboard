@@ -120,9 +120,14 @@ const DevicePage = () => {
             <AccordionDetails className={classes.details}>
               <TextField
                 value={item.uniqueId || ''}
-                onChange={(event) => setItem({ ...item, uniqueId: event.target.value })}
+                onChange={(event) => setItem({
+                  ...item,
+                  // El identificador va SIEMPRE en minúsculas: la app lo escribe
+                  // así y el servidor busca por identificador exacto.
+                  uniqueId: event.target.value.toLowerCase().replace(/\s+/g, ''),
+                })}
                 label="Usuario"
-                helperText="También será el dispositivo MQTT"
+                helperText="Usuario del colaborador (minúsculas, sin espacios)"
                 disabled={Boolean(uniqueId)}
               />
               <TextField
