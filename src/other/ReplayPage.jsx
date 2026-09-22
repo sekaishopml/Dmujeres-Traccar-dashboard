@@ -16,7 +16,6 @@ import {
   TableCell,
   TableRow,
   Tabs,
-  Toolbar,
   Typography,
 } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
@@ -87,9 +86,6 @@ const useStyles = makeStyles()((theme) => ({
       width: '100%',
       margin: 0,
     },
-  },
-  title: {
-    flexGrow: 1,
   },
   slider: {
     width: '100%',
@@ -431,9 +427,9 @@ const ReplayPage = () => {
   const followRef = useRef(follow);
   followRef.current = follow;
 
-  const replayDevice = useSelector((state) => (
-    selectedDeviceId ? state.devices.items[selectedDeviceId] : null
-  ));
+  const replayDevice = useSelector((state) =>
+    selectedDeviceId ? state.devices.items[selectedDeviceId] : null,
+  );
   const { stateLabel, stateMuiColor } = useDeviceStatus(replayDevice);
   const deviceName = replayDevice?.name ?? null;
 
@@ -747,16 +743,23 @@ const ReplayPage = () => {
       <MapScale />
       <MapCamera positions={positions} />
       <div className={classes.sidebar}>
-        <Paper elevation={3} square>
-          <Toolbar>
-            <IconButton edge="start" sx={{ mr: 2 }} onClick={() => navigate(-1)}>
+        <Paper className={classes.content} square>
+          {/* Cabecera única: atrás + nombre + chip de estado + acciones.
+              Se eliminó el bloque superior (título "Repetición Ruta" y el
+              resumen de integridad) para que el panel arranque con el
+              nombre del dispositivo y su chip de estado. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <IconButton edge="start" onClick={() => navigate(-1)}>
               <BackIcon />
             </IconButton>
-            <Typography variant="h6" className={classes.title}>
-              {t('reportReplay')}
-            </Typography>
             {loaded && (
               <>
+                <Typography variant="subtitle1" align="center" noWrap sx={{ flexGrow: 1 }}>
+                  {deviceName}
+                </Typography>
+                {/* Estado operativo del equipo (EN LÍNEA / DETENIDO / SIN CONEXIÓN /
+                    DESHABILITADO), el mismo de la lista y la burbuja del mapa. */}
+                <Chip size="small" color={stateMuiColor} label={stateLabel} />
                 <IconButton onClick={handleDownload}>
                   <DownloadIcon />
                 </IconButton>
@@ -765,22 +768,9 @@ const ReplayPage = () => {
                 </IconButton>
               </>
             )}
-          </Toolbar>
-        </Paper>
-        <Paper className={classes.content} square>
+          </div>
           {loaded && !filterOpen && (
             <>
-              <Typography variant="subtitle1" align="center">
-                {deviceName}
-              </Typography>
-              {/* Estado operativo del equipo (EN LÍNEA / DETENIDO / SIN CONEXIÓN /
-                  DESHABILITADO), el mismo de la lista y la burbuja del mapa. */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 2 }}>
-                <Chip size="small" color={stateMuiColor} label={stateLabel} />
-              </div>
-              <Typography variant="caption" align="center" display="block" color="textSecondary">
-                {`${audit.integrity.rawCount} ${t('replayAuditPositions')} · ${audit.integrity.stopCount} ${t('reportReplayStops').toLowerCase()} · ${audit.integrity.offlineCount} ${t('replayAuditOffline')}`}
-              </Typography>
               {/* Leyenda honesta: solo con match activo. Sólido = medido pegado
                   a vía; punteado = sin match (trazo crudo del fix). */}
               {matchSegments && (

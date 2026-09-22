@@ -1,6 +1,5 @@
 import { Divider, List } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
-import TimelineIcon from '@mui/icons-material/Timeline';
 import PauseCircleFilledIcon from '@mui/icons-material/PauseCircleFilled';
 import PlayCircleFilledIcon from '@mui/icons-material/PlayCircleFilled';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
@@ -9,12 +8,9 @@ import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import RouteIcon from '@mui/icons-material/Route';
-import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import EventRepeatIcon from '@mui/icons-material/EventRepeat';
 import NotesIcon from '@mui/icons-material/Notes';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
-import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from '../../common/components/LocalizationProvider';
 import { useAdministrator, useRestriction } from '../../common/util/permissions';
@@ -35,7 +31,7 @@ const ReportsMenu = () => {
       return path;
     }
     const params = new URLSearchParams();
-    if (path === '/reports/chart' || path === '/reports/route' || path === '/replay') {
+    if (path === '/reports/chart' || path === '/replay') {
       const [firstDeviceId] = deviceIds;
       if (firstDeviceId != null) {
         params.append('deviceId', firstDeviceId);
@@ -94,32 +90,6 @@ const ReportsMenu = () => {
           selected={location.pathname === '/reports/chart'}
         />
         <MenuItem title={t('reportReplay')} link={buildLink('/replay')} icon={<RouteIcon />} />
-        <MenuItem
-          title={t('dmujeresHealth')}
-          link="/reports/dmujeres"
-          icon={<MonitorHeartIcon />}
-          selected={location.pathname === '/reports/dmujeres'}
-        />
-        {admin && (
-          <MenuItem
-            title={t('adminAlerts')}
-            link="/reports/alerts"
-            icon={<WarningAmberIcon />}
-            selected={location.pathname === '/reports/alerts'}
-          />
-        )}
-        <MenuItem
-          title={t('reportJourneys')}
-          link="/reports/journeys"
-          icon={<DirectionsWalkIcon />}
-          selected={location.pathname === '/reports/journeys'}
-        />
-        <MenuItem
-          title={t('reportPositions')}
-          link={buildLink('/reports/route')}
-          icon={<TimelineIcon />}
-          selected={location.pathname === '/reports/route'}
-        />
       </List>
       <Divider />
       <List>

@@ -9,6 +9,9 @@ const useStyles = makeStyles()((theme) => ({
   warning: {
     color: theme.palette.warning.main,
   },
+  info: {
+    color: theme.palette.info.main,
+  },
   error: {
     color: theme.palette.error.main,
   },
@@ -18,20 +21,20 @@ const useStyles = makeStyles()((theme) => ({
 }));
 
 /**
- * Texto secundario de la fila: valor configurado + estado (status + estado
- * visible) + pendientes. Sin batería en ningún estado. Extraído de DeviceRow
+ * Texto secundario de la fila: valor configurado + estado operativo + tiempo
+ * relativo de la última actualización + pendientes. Nunca usa el estado de
+ * Traccar ("En línea") si el estado operativo no es EN LÍNEA: muestra el
+ * `stateLabel` derivado de la jornada/señal con su color
+ * (`stateDisplayColor`). Sin batería en ningún estado. Extraído de DeviceRow
  * para que la fila quede como simple composición. Mantiene el mismo marcado
  * y aria. El motivo de SIN SEÑAL vive en Eventos (campanita), no aquí.
  */
 const DeviceSecondaryText = ({ device, secondaryValue }) => {
   const { classes } = useStyles();
   const t = useTranslation();
-  const { stateMuiColor, statusLabel } = useDeviceStatus(device);
+  const { stateDisplayColor, stateLabel, lastUpdateLabel } = useDeviceStatus(device);
 
-  const statusClass =
-    stateMuiColor === 'default' || stateMuiColor === 'neutral'
-      ? classes.neutral
-      : classes[stateMuiColor];
+  const statusClass = classes[stateDisplayColor] || classes.neutral;
   const pending = device.attributes?.['mobile.pending'];
   const pendingColor = pending > 100 ? 'error' : pending > 50 ? 'warning' : null;
 
@@ -44,7 +47,8 @@ const DeviceSecondaryText = ({ device, secondaryValue }) => {
         </>
       )}
       <span className={statusClass} aria-live="polite">
-        {statusLabel}
+        {stateLabel}
+        {lastUpdateLabel ? ` · ${lastUpdateLabel}` : ''}
       </span>
       {pending > 0 && (
         <>

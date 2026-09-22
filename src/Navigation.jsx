@@ -11,7 +11,6 @@ import { useLocalization } from './common/components/LocalizationProvider';
 import fetchOrThrow from './common/util/fetchOrThrow';
 
 const CombinedReportPage = lazy(() => import('./reports/CombinedReportPage'));
-const PositionsReportPage = lazy(() => import('./reports/PositionsReportPage'));
 const ServerPage = lazy(() => import('./settings/ServerPage'));
 const UsersPage = lazy(() => import('./settings/UsersPage'));
 const DevicePage = lazy(() => import('./settings/DevicePage'));
@@ -62,9 +61,6 @@ const AnnouncementPage = lazy(() => import('./settings/AnnouncementPage'));
 const EmulatorPage = lazy(() => import('./other/EmulatorPage'));
 const StreamPage = lazy(() => import('./other/StreamPage'));
 const AuditPage = lazy(() => import('./reports/AuditPage'));
-const DmujeresHealthPage = lazy(() => import('./reports/DmujeresHealthPage'));
-const AdminAlertsPage = lazy(() => import('./reports/AdminAlertsPage'));
-const JourneyReportPage = lazy(() => import('./reports/JourneyReportPage'));
 
 const Navigation = () => {
   const dispatch = useDispatch();
@@ -187,10 +183,6 @@ const Navigation = () => {
             <Route path="chart" element={<ChartReportPage />} />
             <Route path="events" element={<EventReportPage />} />
             <Route path="geofences" element={<GeofenceReportPage />} />
-            <Route path="route" element={<PositionsReportPage />} />
-            <Route path="dmujeres" element={<DmujeresHealthPage />} />
-            <Route path="alerts" element={<AdminAlertsPage />} />
-            <Route path="journeys" element={<JourneyReportPage />} />
             <Route path="stops" element={<StopReportPage />} />
             <Route path="summary" element={<SummaryReportPage />} />
             <Route path="trips" element={<TripReportPage />} />

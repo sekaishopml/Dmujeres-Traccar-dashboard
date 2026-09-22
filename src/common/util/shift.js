@@ -25,7 +25,6 @@ const toNumber = (value) => {
 // Jornada activa: `mobile.journeyId` > 0 en los atributos del device.
 export const isJourneyActive = (device) => toNumber(device?.attributes?.['mobile.journeyId']) > 0;
 
-
 export const SILENT_THRESHOLD_MS = 900_000;
 
 /**
@@ -71,7 +70,9 @@ const isSignalDegraded = (device, position) =>
  * 4. EN LINEA (verde): jornada activa, señal OK y en movimiento.
  */
 export const selectDeviceState = (device, position) => {
-  if (!isJourneyActive(device)) {
+  // Sin device no hay jornada que leer: DESHABILITADO seguro (el replay
+  // monta este estado antes de elegir equipo y no debe romper).
+  if (!device || !isJourneyActive(device)) {
     return DEVICE_DISABLED;
   }
   if (isSignalDegraded(device, position)) {
@@ -187,7 +188,7 @@ const toTimestamp = (value) => {
  * concluyente, a "causa no confirmada".
  */
 export const getDeviceStateCause = (device, position) => {
-  if (selectDeviceState(device, position) !== DEVICE_NO_SIGNAL) {
+  if (!device || selectDeviceState(device, position) !== DEVICE_NO_SIGNAL) {
     return null;
   }
   const netCause = device?.attributes?.['mobile.netCause'];
