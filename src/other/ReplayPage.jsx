@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as Sentry from '@sentry/react';
 import {
+  Chip,
   IconButton,
   List,
   ListItemButton,
@@ -19,6 +20,7 @@ import {
   Typography,
 } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
+import { useDeviceStatus } from '../main/components/useDeviceStatus';
 import TuneIcon from '@mui/icons-material/Tune';
 import DownloadIcon from '@mui/icons-material/Download';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -429,15 +431,11 @@ const ReplayPage = () => {
   const followRef = useRef(follow);
   followRef.current = follow;
 
-  const deviceName = useSelector((state) => {
-    if (selectedDeviceId) {
-      const device = state.devices.items[selectedDeviceId];
-      if (device) {
-        return device.name;
-      }
-    }
-    return null;
-  });
+  const replayDevice = useSelector((state) => (
+    selectedDeviceId ? state.devices.items[selectedDeviceId] : null
+  ));
+  const { stateLabel, stateMuiColor } = useDeviceStatus(replayDevice);
+  const deviceName = replayDevice?.name ?? null;
 
   useEffect(() => {
     if (!from && !to) {
@@ -775,6 +773,11 @@ const ReplayPage = () => {
               <Typography variant="subtitle1" align="center">
                 {deviceName}
               </Typography>
+              {/* Estado operativo del equipo (EN LÍNEA / DETENIDO / SIN CONEXIÓN /
+                  DESHABILITADO), el mismo de la lista y la burbuja del mapa. */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 2 }}>
+                <Chip size="small" color={stateMuiColor} label={stateLabel} />
+              </div>
               <Typography variant="caption" align="center" display="block" color="textSecondary">
                 {`${audit.integrity.rawCount} ${t('replayAuditPositions')} · ${audit.integrity.stopCount} ${t('reportReplayStops').toLowerCase()} · ${audit.integrity.offlineCount} ${t('replayAuditOffline')}`}
               </Typography>
