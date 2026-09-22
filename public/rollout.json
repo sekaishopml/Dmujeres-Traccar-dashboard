@@ -2,6 +2,7 @@
   "percent": 100,
   "paused": false,
   "allow": [
-    "macias"
+    "macias",
+    "qa-f0"
   ]
 }
