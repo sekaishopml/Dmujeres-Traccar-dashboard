@@ -9,7 +9,7 @@ export const DEVICE_STOPPED = 'detenido';
 export const DEVICE_ONLINE = 'enLinea';
 
 // Velocidad bajo la cual se considera detenido (nudos; 0.5 kn ≈ 0.9 km/h).
-export const STOPPED_MAX_SPEED_KNOTS = 0.5;
+export const STOPPED_MAX_SPEED_KNOTS = 1;
 
 // Degradación de señal: RTT máximo (ms), antigüedad máxima de la última
 // actualización (ms) y precisión máxima de la posición (m).
@@ -47,16 +47,28 @@ export const deviceHealthState = (device, position) => {
   return 'LIVE';
 };
 
-const isSignalDegraded = (device, position) =>
-  device?.attributes?.['mobile.degraded'] === true ||
-  toNumber(device?.attributes?.['mobile.rttMs']) > MAX_SIGNAL_RTT_MS ||
-  toNumber(device?.attributes?.['mobile.signal']) === 0 ||
-  device?.attributes?.['mobile.network'] === 'none' ||
-  device?.status === 'offline' ||
-  device?.status === 'unknown' ||
-  (!!device?.lastUpdate &&
-    Date.now() - dayjs(device.lastUpdate).valueOf() > MAX_LAST_UPDATE_AGE_MS) ||
-  toNumber(position?.attributes?.accuracy) > MAX_POSITION_ACCURACY_M;
+/**
+ * Degradación de señal. OJO: los atributos `mobile.degraded/rttMs/signal/
+ * network` solo los manda la app NATIVA; el cliente de respaldo
+ * (`mobile.client = 'dmujeres-traccar'`) no los envía y si se evalúan quedan
+ * valores viejos que marcaban "sin conexión" para siempre (caso qa-f0). Para
+ * el cliente de respaldo se usan solo señales genéricas (estado de Traccar,
+ * frescura de la última comunicación y precisión del fix).
+ */
+const isSignalDegraded = (device, position) => {
+  const isBackupClient = device?.attributes?.['mobile.client'] === 'dmujeres-traccar';
+  return (
+    (!isBackupClient && device?.attributes?.['mobile.degraded'] === true) ||
+    (!isBackupClient && toNumber(device?.attributes?.['mobile.rttMs']) > MAX_SIGNAL_RTT_MS) ||
+    (!isBackupClient && toNumber(device?.attributes?.['mobile.signal']) === 0) ||
+    (!isBackupClient && device?.attributes?.['mobile.network'] === 'none') ||
+    device?.status === 'offline' ||
+    device?.status === 'unknown' ||
+    (!!device?.lastUpdate &&
+      Date.now() - dayjs(device.lastUpdate).valueOf() > MAX_LAST_UPDATE_AGE_MS) ||
+    toNumber(position?.attributes?.accuracy) > MAX_POSITION_ACCURACY_M
+  );
+};
 
 /**
  * Estado visible del dispositivo para la fila (chip + avatar) y el mapa.

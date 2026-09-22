@@ -32,7 +32,7 @@ const useStyles = makeStyles()((theme) => ({
 const DeviceSecondaryText = ({ device, secondaryValue }) => {
   const { classes } = useStyles();
   const t = useTranslation();
-  const { stateDisplayColor, stateLabel, lastUpdateLabel } = useDeviceStatus(device);
+  const { stateDisplayColor, stateLabel } = useDeviceStatus(device);
 
   const statusClass = classes[stateDisplayColor] || classes.neutral;
   const pending = device.attributes?.['mobile.pending'];
@@ -48,7 +48,6 @@ const DeviceSecondaryText = ({ device, secondaryValue }) => {
       )}
       <span className={statusClass} aria-live="polite">
         {stateLabel}
-        {lastUpdateLabel ? ` · ${lastUpdateLabel}` : ''}
       </span>
       {pending > 0 && (
         <>
