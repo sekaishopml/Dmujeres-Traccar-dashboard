@@ -64,6 +64,11 @@ const DevicePage = () => {
       return;
     }
     const intervalSeconds = Number(item.attributes?.['mobile.intervalSeconds'] || 10);
+    const minIntervalSeconds = Number(item.attributes?.['mobile.minIntervalSeconds'] ?? 10);
+    const distanceMeters = Number(item.attributes?.['mobile.distanceMeters'] ?? 10);
+    const angleDegrees = Number(item.attributes?.['mobile.angleDegrees'] ?? 15);
+    const accuracy = item.attributes?.['mobile.accuracy'] ?? 'high';
+    const bufferEnabled = item.attributes?.['mobile.bufferEnabled'] ?? true;
     const bufferMax = Number(item.attributes?.['mobile.bufferMax'] || 5000);
     const bufferPolicy = item.attributes?.['mobile.bufferPolicy'] || 'drop_oldest';
     const ackTimeoutSeconds = Number(item.attributes?.['mobile.ackTimeoutSeconds'] || 15);
@@ -76,6 +81,11 @@ const DevicePage = () => {
         password: mqttPassword,
         name: item.name || item.uniqueId,
         intervalSeconds,
+        minIntervalSeconds,
+        distanceMeters,
+        angleDegrees,
+        accuracy,
+        bufferEnabled,
         bufferMax,
         bufferPolicy,
         ackTimeoutSeconds,
@@ -91,6 +101,11 @@ const DevicePage = () => {
       attributes: {
         ...item.attributes,
         'mobile.intervalSeconds': provisioned.intervalSeconds,
+        'mobile.minIntervalSeconds': provisioned.minIntervalSeconds ?? minIntervalSeconds,
+        'mobile.distanceMeters': provisioned.distanceMeters ?? distanceMeters,
+        'mobile.angleDegrees': provisioned.angleDegrees ?? angleDegrees,
+        'mobile.accuracy': provisioned.accuracy ?? accuracy,
+        'mobile.bufferEnabled': provisioned.bufferEnabled ?? bufferEnabled,
         'mobile.bufferMax': provisioned.bufferMax,
         'mobile.bufferPolicy': provisioned.bufferPolicy,
         'mobile.ackTimeoutSeconds': provisioned.ackTimeoutSeconds,
@@ -151,6 +166,89 @@ const DevicePage = () => {
                 label="Frecuencia (segundos)"
                 type="number"
                 inputProps={{ min: 3, max: 300 }}
+              />
+              <TextField
+                value={item.attributes?.['mobile.minIntervalSeconds'] ?? 10}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.minIntervalSeconds': Number(event.target.value),
+                    },
+                  })
+                }
+                label="Intervalo mínimo (s)"
+                type="number"
+                inputProps={{ min: 3, max: 120 }}
+                helperText="Cadencia mínima cuando hay movimiento"
+              />
+              <TextField
+                value={item.attributes?.['mobile.distanceMeters'] ?? 10}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.distanceMeters': Number(event.target.value),
+                    },
+                  })
+                }
+                label="Distancia de movimiento (m)"
+                type="number"
+                inputProps={{ min: 0, max: 500 }}
+                helperText="Solo se guarda un punto si se movió al menos esta distancia"
+              />
+              <TextField
+                value={item.attributes?.['mobile.angleDegrees'] ?? 15}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.angleDegrees': Number(event.target.value),
+                    },
+                  })
+                }
+                label="Ángulo de cambio de rumbo (°)"
+                type="number"
+                inputProps={{ min: 0, max: 180 }}
+              />
+              <SelectField
+                value={item.attributes?.['mobile.accuracy'] ?? 'high'}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.accuracy': event.target.value,
+                    },
+                  })
+                }
+                data={[
+                  { id: 'high', name: 'Alta' },
+                  { id: 'medium', name: 'Media' },
+                  { id: 'low', name: 'Baja' },
+                ]}
+                label="Precisión"
+              />
+              <SelectField
+                value={item.attributes?.['mobile.bufferEnabled'] ?? true}
+                onChange={(event) =>
+                  setItem({
+                    ...item,
+                    attributes: {
+                      ...item.attributes,
+                      'mobile.bufferEnabled': event.target.value,
+                    },
+                  })
+                }
+                data={[
+                  { id: true, name: 'Sí' },
+                  { id: false, name: 'No' },
+                ]}
+                label="Buffer activado"
+                helperText="Guardar pendientes sin señal y reenviarlos al reconectar"
               />
               <TextField
                 value={item.attributes?.['mobile.bufferMax'] || 5000}
@@ -219,8 +317,8 @@ const DevicePage = () => {
                 helperText="Intentos de envío de cada ubicación antes de descartarla"
               />
               <Typography variant="caption" color="textSecondary">
-                Esta configuración se aplica automáticamente a la app del colaborador en su próxima
-                sesión.
+                La app toma estos cambios sola: consulta la configuración al abrir y cada 10
+                minutos, sin actualizar la app.
               </Typography>
               <Button
                 variant="contained"
