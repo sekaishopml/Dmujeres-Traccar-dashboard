@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Paper, Typography } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import { isJourneyActive } from '../common/util/shift';
+import { hasJourneyInfo, isJourneyActive } from '../common/util/shift';
 
 const useStyles = makeStyles()((theme) => ({
   summary: {
@@ -45,7 +45,7 @@ const DeviceSummary = ({ devices }) => {
     let offline = 0;
     let disabled = 0;
     Object.values(devices).forEach((device) => {
-      if (!isJourneyActive(device)) {
+      if (hasJourneyInfo(device) && !isJourneyActive(device)) {
         disabled += 1;
       } else if (device.status === 'online') {
         online += 1;

@@ -25,6 +25,11 @@ const toNumber = (value) => {
 // Jornada activa: `mobile.journeyId` > 0 en los atributos del device.
 export const isJourneyActive = (device) => toNumber(device?.attributes?.['mobile.journeyId']) > 0;
 
+// ¿El equipo reporta jornada? Las apps viejas (anteriores a la jornada) no
+// tienen el atributo: sin dato no se puede decir "deshabilitado" porque el
+// equipo igual está trazando (caso Pilay: ruta en el mapa y chip gris).
+export const hasJourneyInfo = (device) => device?.attributes?.['mobile.journeyId'] !== undefined;
+
 export const SILENT_THRESHOLD_MS = 900_000;
 
 /**
@@ -73,8 +78,10 @@ const isSignalDegraded = (device, position) => {
 /**
  * Estado visible del dispositivo para la fila (chip + avatar) y el mapa.
  * Precedencia estricta:
- * 1. DESHABILITADO (gris): jornada no activa (`mobile.journeyId` <= 0),
- *    aunque el device esté online.
+ * 1. DESHABILITADO (gris): el equipo reporta jornada y está cerrada
+ *    (`mobile.journeyId` = 0), aunque el device esté online. Si el equipo no
+ *    reporta jornada (app vieja) NO se marca deshabilitado: se usa el estado
+ *    real de trazado.
  * 2. SIN SEÑAL (naranja): jornada activa y degradación de señal
  *    (`mobile.degraded`, RTT > 2 s, `mobile.signal` 0, red 'none',
  *    offline/unknown, lastUpdate > 2 min o precisión GPS > 80 m).
@@ -84,7 +91,7 @@ const isSignalDegraded = (device, position) => {
 export const selectDeviceState = (device, position) => {
   // Sin device no hay jornada que leer: DESHABILITADO seguro (el replay
   // monta este estado antes de elegir equipo y no debe romper).
-  if (!device || !isJourneyActive(device)) {
+  if (!device || (hasJourneyInfo(device) && !isJourneyActive(device))) {
     return DEVICE_DISABLED;
   }
   if (isSignalDegraded(device, position)) {

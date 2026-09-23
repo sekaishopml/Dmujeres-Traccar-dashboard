@@ -6,6 +6,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEVICE_DISABLED,
+  DEVICE_ONLINE,
+  DEVICE_STOPPED,
   getDeviceStateCause,
   getDeviceStateDisplayColor,
   getDeviceStateLabelKey,
@@ -20,13 +22,24 @@ describe('selectDeviceState sin device', () => {
     assert.equal(selectDeviceState(null, { speed: 10 }), DEVICE_DISABLED);
   });
 
-  it('device online sin jornada activa es DESHABILITADO (nunca EN LÍNEA)', () => {
+  it('device online con jornada cerrada (journeyId 0) es DESHABILITADO (nunca EN LÍNEA)', () => {
+    const device = {
+      status: 'online',
+      lastUpdate: new Date().toISOString(),
+      attributes: { 'mobile.journeyId': 0 },
+    };
+    assert.equal(selectDeviceState(device, { speed: 10 }), DEVICE_DISABLED);
+  });
+
+  it('device online SIN dato de jornada (app vieja) muestra el estado real', () => {
     const device = {
       status: 'online',
       lastUpdate: new Date().toISOString(),
       attributes: {},
     };
-    assert.equal(selectDeviceState(device, { speed: 10 }), DEVICE_DISABLED);
+    // En movimiento: EN LÍNEA; quieto: DETENIDO. Nunca DESHABILITADO.
+    assert.equal(selectDeviceState(device, { speed: 10 }), DEVICE_ONLINE);
+    assert.equal(selectDeviceState(device, { speed: 0 }), DEVICE_STOPPED);
   });
 });
 
