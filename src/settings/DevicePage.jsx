@@ -163,9 +163,10 @@ const DevicePage = () => {
                     },
                   })
                 }
-                label="Frecuencia (segundos)"
+                label="Frecuencia en movimiento (s)"
                 type="number"
-                inputProps={{ min: 3, max: 300 }}
+                inputProps={{ min: 15, max: 60 }}
+                helperText="15 a 60 s mientras se mueve. Parado se pide cada 2 min para ahorrar batería"
               />
               <TextField
                 value={item.attributes?.['mobile.minIntervalSeconds'] ?? 10}
