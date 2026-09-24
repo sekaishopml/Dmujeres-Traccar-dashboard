@@ -247,6 +247,15 @@ export const STOP_MERGE_RADIUS_M = 80;
 /** Hueco máximo (ms) entre paradas del mismo lugar para fusionarlas. */
 export const STOP_MERGE_GAP_MS = 60 * 60 * 1000;
 
+/** Proporción mínima de fixes dentro del radio de la mediana para aceptar una
+ * racha con deriva GPS que supera el diámetro estricto (2·radio). 75%: manda
+ * el núcleo; un crawl monótono reparte los fixes a lo largo y no llega. */
+export const STOP_DRIFT_CORE_RATIO = 0.75;
+
+/** Factor máximo del radio para el diámetro de una racha con deriva: más allá
+ * hubo desplazamiento real (4×radio = 160 m con el radio de parada de 40 m). */
+export const STOP_DRIFT_MAX_DIAMETER_FACTOR = 4;
+
 /**
  * Fusiona paradas consecutivas del mismo lugar (<= STOP_MERGE_RADIUS_M) sin
  * hueco real entre ellas (<= STOP_MERGE_GAP_MS): el jitter Doppler parte una
@@ -277,6 +286,46 @@ function mergeNearbyStops(stops) {
     merged.push(stop);
   });
   return merged;
+}
+
+/**
+ * Estacionariedad con deriva GPS: una racha que supera el diámetro estricto
+ * (2·radio) sigue siendo parada si es larga, el núcleo de fixes alrededor de
+ * su mediana es mayoritario (>= STOP_DRIFT_CORE_RATIO), el desplazamiento
+ * neto entre extremos no supera el radio y las excursiones lejanas son lentas
+ * (multipath/deriva, no un desplazamiento real: un crawl monótono tiene
+ * neto ≈ diámetro y núcleo bajo; una excursión rápida tiene Doppler alto).
+ * Solo decide si la racha cuenta como parada; no filtra ni toca ningún fix.
+ */
+function runIsDriftStationary(run, radiusM, maxSpeedKn, maxOutliers, minDurationMs, diameterM) {
+  if (diameterM > radiusM * STOP_DRIFT_MAX_DIAMETER_FACTOR) {
+    return false;
+  }
+  const startTime = timeOf(run[0]);
+  const endTime = timeOf(run[run.length - 1]);
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+    return false;
+  }
+  if (endTime - startTime < minDurationMs) {
+    return false;
+  }
+  if (distanceMeters(run[0], run[run.length - 1]) > radiusM) {
+    return false;
+  }
+  const median = medianOfRun(run);
+  let core = 0;
+  let fastFar = 0;
+  run.forEach((point) => {
+    if (distanceMeters(point, median) <= radiusM) {
+      core += 1;
+      return;
+    }
+    const speed = Number(point.speed);
+    if (Number.isFinite(speed) && speed >= maxSpeedKn) {
+      fastFar += 1;
+    }
+  });
+  return core / run.length >= STOP_DRIFT_CORE_RATIO && fastFar <= maxOutliers;
 }
 
 /**
@@ -316,6 +365,9 @@ export function detectStops(
     // puntos de la racha distan más del doble del radio, NO es quieta. Caso
     // real (macias 10:13:10→10:17:47): 994 m entre extremos con Doppler ~0
     // generaban una parada fantasma de 4.6 min y una recta de 994 m.
+    // Excepción (deriva GPS): una estancia larga con jitter multipath y sesgo
+    // lento puede superar ese diámetro sin que el vehículo se mueva; la decide
+    // runIsDriftStationary con núcleo, desplazamiento neto y Doppler.
     let diameterM = 0;
     for (let i = 0; i < run.length; i += 1) {
       for (let j = i + 1; j < run.length; j += 1) {
@@ -325,7 +377,10 @@ export function detectStops(
         }
       }
     }
-    if (diameterM > radiusM * 2) {
+    if (
+      diameterM > radiusM * 2 &&
+      !runIsDriftStationary(run, radiusM, maxSpeedKn, maxOutliers, minDurationMs, diameterM)
+    ) {
       return;
     }
     const startTime = timeOf(run[0]);
@@ -361,12 +416,19 @@ export const STOP_MOVE_RADIUS_M = 150;
 /** Ventana (ms) antes/después donde se busca ese movimiento. */
 export const STOP_MOVE_WINDOW_MS = 10 * 60 * 1000;
 
+/** Tope (ms) de la ventana de validación en paradas largas: la llegada/salida
+ * puede quedar lejos de los fixes en marcha (crawl lento, hueco de cobertura),
+ * así que la ventana crece con la duración hasta este tope. */
+export const STOP_MOVE_WINDOW_MAX_MS = 30 * 60 * 1000;
+
 /**
  * Valida que una parada sea un evento real de viaje (movimiento + tiempo) y
  * no deriva de GPS: exige haberse alejado > STOP_MOVE_RADIUS_M en los 10 min
  * ANTES de llegar o en los 10 min DESPUÉS de salir, con al menos 3 fixes
- * (un salto fantasma aislado no valida). Las paradas que tocan un borde del
- * rango se conservan (no hay antes/después que juzgar).
+ * (un salto fantasma aislado no valida). En paradas de 30 min o más la
+ * ventana se amplía hasta STOP_MOVE_WINDOW_MAX_MS (las cortas no cambian).
+ * Las paradas que tocan un borde del rango se conservan (no hay antes/después
+ * que juzgar).
  */
 function filterPhantomStops(stops, positions) {
   const FAR_COUNT = 3;
@@ -392,9 +454,13 @@ function filterPhantomStops(stops, positions) {
     }
     const arrival = Date.parse(stop.arrivalTime);
     const departure = Date.parse(stop.departureTime);
+    const windowMs = Math.min(
+      STOP_MOVE_WINDOW_MAX_MS,
+      Math.max(STOP_MOVE_WINDOW_MS, stop.durationMs),
+    );
     return (
-      movedEnough(arrival - STOP_MOVE_WINDOW_MS, arrival, stop) ||
-      movedEnough(departure, departure + STOP_MOVE_WINDOW_MS, stop)
+      movedEnough(arrival - windowMs, arrival, stop) ||
+      movedEnough(departure, departure + windowMs, stop)
     );
   });
 }

@@ -19,7 +19,7 @@ import {
   syncDelayMs,
   toTrackPoint,
 } from './replayAudit.js';
-import { shouldCut } from './pathDecimation.js';
+import { detectStops, shouldCut } from './pathDecimation.js';
 
 const T0 = Date.parse('2026-03-10T08:00:00Z');
 const iso = (ms) => new Date(ms).toISOString();
@@ -173,6 +173,125 @@ describe('paradas', () => {
     const stops = analyzeStops(pts);
     assert.equal(stops.length, 1);
     assert.equal(stops[0].durationMs, 10 * 60 * 1000);
+  });
+});
+
+describe('Pilay 2026-09-23: parada larga, picos aislados y sin accuracy', () => {
+  const base = { lat: -2.2274, lon: -79.88844 };
+
+  /** Fix de la app vieja 1.1.x: sin atributo accuracy (no se puede juzgar). */
+  function withoutAccuracy(point) {
+    const copy = { ...point };
+    delete copy.accuracy;
+    return copy;
+  }
+
+  /** Llegada/salida en marcha a ~240 m: sus fixes >150 m validan la parada. */
+  function arrival(startDt, idStart) {
+    return Array.from({ length: 8 }, (_, i) =>
+      withoutAccuracy(
+        fix(-2.2259 - i * 0.0002, -79.8869 - i * 0.0002, {
+          dt: startDt + i * 10000,
+          speed: 25,
+          id: idStart + i,
+        }),
+      ),
+    );
+  }
+
+  /** Estancia quieta de 140 fixes (65 s) con picos Doppler y sin accuracy. */
+  function dwell(startDt, idStart, { farSpike = false } = {}) {
+    const peaks = new Map([
+      [81, 0.853],
+      [86, 0.586],
+      [106, 3.476],
+    ]);
+    return Array.from({ length: 140 }, (_, i) => {
+      const jx = ((i * 37) % 7) - 3;
+      const spike = farSpike && i === 50;
+      return withoutAccuracy(
+        fix(spike ? base.lat - 120 / 111320 : base.lat + jx * 0.00001, base.lon, {
+          dt: startDt + i * 65000,
+          speed: spike ? 8 : (peaks.get(i) ?? 0),
+          id: idStart + i,
+        }),
+      );
+    });
+  }
+
+  it('parada larga con pico aislado de 3.5 kn y sin accuracy: se detecta', () => {
+    const pts = [
+      ...arrival(0, 100),
+      ...dwell(8 * 60000, 1000),
+      ...arrival(8 * 60000 + 140 * 65000, 2000),
+    ];
+    const before = snapshot(pts);
+    const stops = analyzeStops(pts);
+    assert.equal(stops.length, 1);
+    assert.ok(stops[0].durationMs >= 150 * 60000, `duración ${stops[0].durationMs}`);
+    assert.equal(stops[0].accuracyMed, null, 'sin accuracy no se inventa precisión');
+    assert.equal(snapshot(pts), before, 'RAW intacto');
+  });
+
+  it('un pico Doppler aislado y lejano que vuelve al lugar no parte la parada', () => {
+    const pts = [
+      ...arrival(0, 100),
+      ...dwell(8 * 60000, 1000, { farSpike: true }),
+      ...arrival(8 * 60000 + 140 * 65000, 2000),
+    ];
+    const stops = analyzeStops(pts);
+    assert.equal(stops.length, 1);
+    assert.ok(stops[0].durationMs >= 150 * 60000, `duración ${stops[0].durationMs}`);
+  });
+
+  it('deriva GPS lenta con jitter: la estancia larga se detecta (antes se perdía)', () => {
+    const pts = [...arrival(0, 100)];
+    // Deriva de 25 m en 2 h con jitter ±30 m que vuelve al centro entre picos:
+    // el diámetro supera 2·radio pero el núcleo y el neto delatan quietud.
+    const pattern = [0, 30, 0, -30];
+    for (let m = 0; m <= 120; m += 1) {
+      const drift = (25 * m) / 120;
+      pts.push(
+        fix(base.lat + (drift + pattern[m % 4]) / 111320, base.lon, {
+          dt: 8 * 60000 + m * 60000,
+          speed: 0,
+          id: 1000 + m,
+        }),
+      );
+    }
+    pts.push(...arrival(8 * 60000 + 121 * 60000, 2000));
+    const stops = analyzeStops(pts);
+    assert.equal(stops.length, 1);
+    assert.ok(stops[0].durationMs >= 120 * 60000, `duración ${stops[0].durationMs}`);
+    assert.ok(stops[0].index > 0 && stops[0].index + stops[0].pointCount < pts.length);
+  });
+
+  it('crawl lento monótono (avance real) no inventa parada', () => {
+    const pts = Array.from({ length: 8 }, (_, i) =>
+      fix(-2.2274 + (i * 45) / 111320, -79.88844, { dt: i * 65000, speed: 1.3, id: i + 1 }),
+    );
+    assert.equal(detectStops(pts).length, 0);
+    assert.equal(analyzeStops(pts).length, 0);
+  });
+
+  it('parada larga con hueco de cobertura: el movimiento a >10 min la valida', () => {
+    const pts = [
+      fix(-2.2 + 400 / 111320, -79.9, { dt: -20 * 60000, speed: 25, id: 1 }),
+      fix(-2.2 + 360 / 111320, -79.9, { dt: -18 * 60000, speed: 25, id: 2 }),
+      fix(-2.2 + 320 / 111320, -79.9, { dt: -16 * 60000, speed: 25, id: 3 }),
+      ...Array.from({ length: 4 }, (_, i) =>
+        fix(-2.2 + 100 / 111320, -79.9, { dt: (-14 + 2 * i) * 60000, speed: 0.5, id: 10 + i }),
+      ),
+      ...Array.from({ length: 61 }, (_, i) => {
+        const jx = ((i * 37) % 7) - 3;
+        return fix(-2.2 + jx * 0.00001, -79.9, { dt: (4 + 2 * i) * 60000, speed: 0, id: 100 + i });
+      }),
+      fix(-2.2 + 400 / 111320, -79.9, { dt: 146 * 60000, speed: 25, id: 900 }),
+      fix(-2.2 + 900 / 111320, -79.9, { dt: 148 * 60000, speed: 25, id: 901 }),
+    ];
+    const stops = analyzeStops(pts);
+    assert.equal(stops.length, 1);
+    assert.ok(stops[0].durationMs >= 100 * 60000, `duración ${stops[0].durationMs}`);
   });
 });
 
